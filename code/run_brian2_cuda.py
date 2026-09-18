@@ -44,7 +44,7 @@ default_params = {
     'tau': 5 * ms,
     't_rfc': 2.2 * ms,
     't_dly': 1.8 * ms,
-    'w_syn': 0.275 * mV,
+    'w_syn': float(os.environ.get('FLY_W_SYN', '0.275')) * mV,
     'r_poi': 100 * Hz,
     'r_poi2': 0 * Hz,
     'f_poi': 250,

@@ -43,8 +43,10 @@ def spike_io_enabled():
 # ============================================================================
 current_dir = Path(__file__).resolve().parent
 output_dir = current_dir / 'output'
-path_comp = (current_dir / '../data/2025_Completeness_783.csv').resolve()
-path_con = (current_dir / '../data/2025_Connectivity_783.parquet').resolve()
+path_comp = Path(os.environ.get(
+    'FLY_COMP_PATH', (current_dir / '../data/2025_Completeness_783.csv').resolve()))
+path_con = Path(os.environ.get(
+    'FLY_CONN_PATH', (current_dir / '../data/2025_Connectivity_783.parquet').resolve()))
 path_res = (current_dir / '../data/results').resolve()
 path_wt = (current_dir / '../data').resolve()
 csv_path = (current_dir / '../data/benchmark-results.csv').resolve()
@@ -96,6 +98,16 @@ EXPERIMENTS = {
         'neu_slnc': [],
         'stim_rate': 100.0,
     },
+}
+
+EXPERIMENTS['custom'] = {
+    'key': 'custom',
+    'name': 'Custom neuron set (FLY_NEU_EXC)',
+    'neu_exc': [int(x) for x in os.environ.get('FLY_NEU_EXC', '').split(',') if x],
+    'neu_exc2': [int(x) for x in os.environ.get('FLY_NEU_EXC2', '').split(',') if x],
+    'neu_slnc': [],
+    'stim_rate': float(os.environ.get('FLY_STIM_RATE', '200')),
+    'stim_rate2': float(os.environ.get('FLY_STIM_RATE2', '0')),
 }
 
 DEFAULT_EXPERIMENT = 'sugar'

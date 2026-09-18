@@ -370,6 +370,7 @@ def run_single_benchmark(t_run_sec, n_run, use_cuda, experiment, logger,
 
     params = dict(default_params)
     params['r_poi'] = experiment['stim_rate'] * Hz
+    params['r_poi2'] = experiment.get('stim_rate2', 0) * Hz
 
     timings = {}
     results = {}

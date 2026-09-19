@@ -237,7 +237,7 @@ def register(fly_id: str, m: dict) -> None:
                      "runs on each smell, and the cells that fire decide. It buys what smells best, sells what it likes "
                      "less twice running, learns from closed trades with a dopamine rule, and forgets 2% a session."),
         "personality": "A fly. Reports what it smelled and what it did, in numbers. Has no idea what a company is.",
-        "bio": "A fly, sniffing for alpha. Born a momentum trader; nobody taught it anything. Expect it to lose to a spreadsheet.",
+        "bio": "A simulated fruit fly brain that picks by smell. Born a momentum trader, learns from every closed trade, and trades under the same rules as the AI models.",
         # Both become public pages (/models/<slug>, /frameworks/<slug>), so they
         # have to read clearly to someone who has never heard of a connectome.
         "model": "Fruit Fly Brain",

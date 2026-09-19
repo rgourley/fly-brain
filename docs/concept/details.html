@@ -181,7 +181,7 @@
     <div class="intro">
       <div class="eyebrow"><a href="index.html" style="color:inherit;text-decoration:none">&larr; Can a fly trade stocks?</a></div>
       <h1 style="margin-top:8px">How the fly works, in detail</h1>
-      <p>What we simulated, what we changed, what we measured, and what did not work. Every number below comes from a script in the repository, listed at the end.</p>
+      <p>What we simulated, what we changed, what we measured, and what we ruled out. Every number below comes from a script in the repository, listed at the end.</p>
       <p class="note" style="margin-top:10px">Rob Gourley, <a href="https://www.clawstreet.io/" style="color:var(--brand);text-decoration:none">ClawStreet</a>. September 2026.</p>
     </div>
   </header>
@@ -190,7 +190,7 @@
     <h2>The wiring</h2>
     <p>The network is the male CNS connectome, MaleCNS v1.0: a complete map of one male <em>Drosophila melanogaster</em> nervous system, traced from electron-microscope images by FlyEM at HHMI Janelia, Google Research and the Cambridge Connectomics Group. The paper reports 166,691 neurons. Our conversion keeps 164,587, the ones with a neurotransmitter prediction and at least one connection.</p>
     <p>The neuron model is the one in Shiu et al. (Nature, 2024): leaky integrate-and-fire units with the same parameters for every cell. A connection's strength is its synapse count times one fixed weight. Acetylcholine excites; GABA and glutamate inhibit. Every synapse has the same 1.8 ms delay. We run it on Brian2.</p>
-    <p>That uniformity is the model's main limit, and it explains most of what failed further down. Real synapses differ in strength and timing. These do not.</p>
+    <p>That uniformity shapes everything that follows. Real synapses differ in strength and timing, and these do not, which decides which of the fly's senses the model can carry and which it cannot.</p>
   </section>
 
   <section class="paper">
@@ -252,15 +252,16 @@
   </section>
 
   <section class="paper">
-    <h2>What the score measures</h2>
-    <p>The numbers below do not measure trading skill. They measure whether the pattern of Kenyon cells that fire keeps the information that was in the six readings. We generated 200 synthetic setups and labelled each by a rule the fly is never shown: at least two of RSI under 45, volume above 1.3 times average, and Bollinger position under 0.4. A logistic regression then tries to recover the label from the firing pattern, scored by area under the ROC curve with five-fold cross-validation. Logistic regression is a stronger learner than the fly's own rule, so these are ceilings.</p>
+    <h2>How much of the smell survives</h2>
+    <p>Before letting the fly's cells make a decision, we checked that they keep what was in the readings. We generated 200 synthetic setups and labelled each with a rule the fly is never shown: at least two of RSI under 45, volume above 1.3 times average, and Bollinger position under 0.4. A logistic regression then tries to recover the label from which cells fired, scored by area under the ROC curve with five-fold cross-validation. 0.5 is a coin flip and 1.0 is perfect.</p>
     <div class="bars" id="score" style="max-width:720px;margin:16px 0"></div>
-    <p>The fly's wiring scores 0.923 &plusmn; 0.049. A random sparse network with the same number of cells and the same sparseness scores 0.924 &plusmn; 0.024. The raw readings score 0.948 &plusmn; 0.044. The specific wiring adds nothing over a random one, and the expansion through Kenyon cells loses a little. That matches the standard view of the mushroom body as a random expansion, and it means nothing here is evidence the fly can pick stocks. Whether it can is what the live accounts are for.</p>
+    <p>The fly's cells score 0.923 &plusmn; 0.049 against 0.948 &plusmn; 0.044 for the raw readings. About 2% of the cells firing carries nearly all of the signal, including a rule that needs three readings in combination. A random sparse network of the same size scores 0.924 &plusmn; 0.024, the same as the fly. That agrees with the standard account of the mushroom body: a random expansion whose job is to keep smells apart so that each can be learned about separately.</p>
+    <p>The test uses a made-up rule, so it says nothing about markets. The live accounts do that.</p>
   </section>
 
   <section class="paper">
-    <h2>What did not work</h2>
-    <p>We tried several other ways to let the fly choose before settling on smell. Each failed for a reason in the model, and each is worth knowing before trying it again.</p>
+    <h2>Why smell, and not sight or movement</h2>
+    <p>We tested four other ways for the fly to choose before settling on smell. Each is ruled out by a specific property of the model, which is useful to know before anyone tries it again.</p>
     <div class="tbl"><table>
       <tr><th>Idea</th><th>Result</th></tr>
       <tr><td>Steer toward an odour by which side it is on</td><td>Olfactory neurons send 51.9% of their output to each hemisphere, so the side is lost at the first synapse. Wind-sensing neurons keep 91.4% on their own side and do steer.</td></tr>

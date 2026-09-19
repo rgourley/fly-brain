@@ -119,6 +119,10 @@
   .kv .k { font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
   .kv .v { font: 500 18px var(--mono); margin-top: 4px; }
   .kv .why { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+  .table3d { background: var(--elev); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
+  .table3d canvas { width: 100%; height: 360px; display: block; }
+  @media (max-width: 600px) { .table3d canvas { height: 240px; } }
+  .cap3d { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; padding: 10px 14px; font-size: 12px; color: var(--text-2); border-top: 1px solid var(--border); }
   footer { padding-top: 24px; font-size: 12px; color: var(--muted); max-width: 70ch; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
@@ -144,6 +148,10 @@
     <div class="sec-head">
       <h2>Today's decision, replayed</h2>
       <span class="note">Every light on this page happened in the simulation. Schematic layout; the built version uses the official MaleCNS neuropil meshes.</span>
+    </div>
+    <div class="table3d">
+      <canvas id="fly3d" aria-label="A fruit fly at a table of six charts"></canvas>
+      <div class="cap3d"><span id="cap3d">The fly at the table</span><span class="note">Decorative. It smells the indicators; the charts are how you would recognise them.</span></div>
     </div>
     <div class="stage">
       <div class="brain">
@@ -237,6 +245,7 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
   </footer>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
   // ---- real data from session 1, 21 Sep 2026 ------------------------
@@ -285,6 +294,112 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
   const vec = a => CH.map(n=>a[n]||0);
   const cos = (a,b)=>{ let d=0,x=0,y=0; for(let i=0;i<a.length;i++){d+=a[i]*b[i];x+=a[i]*a[i];y+=b[i]*b[i];} return x&&y? d/Math.sqrt(x*y):0; };
   for(const s of ORDER){ STOCKS[s].smell = smell(STOCKS[s].r); STOCKS[s].vec = vec(STOCKS[s].smell); }
+
+  // ---- the fly at the table (decorative; driven by the same replay) -------
+  const CANDLES = {"NVDA":[[218.42,218.74,214.5,214.72],[215.53,215.59,207.25,208.48],[211.03,214.73,210.11,213.05],[212.64,213.6,209.23,209.66],[222.86,230.47,220.9,227.98],[227.36,229.26,216.81,217.55],[218.87,221.3,216.21,220.78],[216.75,220.41,215.1,217.44],[218.78,227.95,218.48,224.41],[226.02,230.4,224.75,228.45],[231.09,234.76,229.63,230.36],[233.11,233.71,224.85,225.73],[225.28,226.18,223.46,223.67],[220.53,220.99,217.2,218.36],[221.24,222,218.15,218.29],[211.24,212.77,208.93,210.96],[213.38,213.94,211.16,212.17],[214.14,216.76,212.5,213.9],[218.38,219.91,217.15,219.34],[219.35,222.73,218.03,222.27]],"AAPL":[[312.05,312.38,307.01,309.35],[311.47,313.36,309.97,310.34],[310.79,313.59,308.21,309.9],[310.3,315.43,308.8,313.45],[310.55,315.4,309.4,314.58],[316.85,322.37,315.45,319.7],[319.6,321.24,312.8,316.85],[316.98,327.3,314.73,325.13],[326.87,328.4,323.53,324.96],[324.87,330.81,324.11,328.21],[328.31,328.93,317.86,319.97],[317.1,320.7,314.9,316.22],[315.49,319.15,309.9,315.34],[316.67,326.74,316.51,326.57],[327.45,336.22,326.3,332.27],[334.79,335.5,331.34,333.08],[330.13,331.78,328.35,331.34],[332.53,335.48,330.7,332.41],[334.77,338.34,330.18,337],[337.9,338.49,332.53,336.13]],"SOFI":[[18.18,19.17,18.07,18.91],[18.73,18.89,18.21,18.24],[18.33,19.02,18.07,19],[18.97,19.32,18.71,18.84],[19.0,19.47,18.59,19.18],[19.2,19.5,18.03,18.06],[17.75,17.96,17.55,17.88],[17.55,17.66,16.98,17.05],[17.05,17.94,16.92,17.84],[18,18.71,17.99,18.51],[18.08,18.34,17.96,18.22],[18.22,18.35,17.89,18.01],[17.97,18.01,17.33,17.33],[17.03,17.39,16.93,17.21],[17.32,17.5,17.12,17.32],[17.0,17.75,17,17.65],[17.5,17.59,16.94,17.07],[17.11,17.16,16.53,16.84],[17.34,17.37,16.7,16.73],[16.83,17.06,16.66,16.96]],"TSLA":[[349.88,366.5,346.9,362.86],[361.41,363.24,348.26,348.95],[349.58,357,349.2,350.25],[345.27,351.93,342.53,345.82],[346.15,355.74,345.45,354.81],[357.1,358.8,345.2,348.75],[347.21,368.92,347.15,367.95],[360.9,362.7,352.96,356.09],[360.41,360.62,349.92,357.01],[365.82,384.04,365.82,376.37],[362.07,364.69,351.32,354.08],[357.1,370,355.75,368.16],[368.25,375.44,366,367.81],[360.6,369.21,357.68,363.56],[364.2,368.66,361.6,365.44],[359.78,367.73,357.04,358.97],[358.75,362.39,354.05,356.58],[357.93,365.1,354.89,358.08],[367.48,374.12,363.22,366.2],[369,370.9,360.75,364.27]],"PFE":[[27.77,28.43,27.66,28.07],[28.1,28.16,27.81,27.97],[27.91,28.58,27.84,28.57],[28.44,28.5,28.14,28.3],[27.97,28.18,27.83,28.02],[28,28.02,27.77,27.96],[27.85,28.7,27.64,28.46],[28.82,29.09,28.46,28.55],[28.79,29.09,28.7,29.02],[29.09,29.21,28.44,28.81],[28.58,28.69,28.38,28.45],[28.02,28.14,27.71,27.79],[27.76,27.98,27.57,27.78],[27.69,27.75,27.4,27.65],[27.8,27.85,27.42,27.72],[28.08,28.19,27.68,27.72],[27.61,27.66,27.25,27.55],[27.64,27.69,27.36,27.46],[27.62,27.81,27.55,27.64],[27.64,27.66,27.34,27.66]],"KO":[[90.85,91.2,90.32,91.1],[92.12,92.49,91.45,91.99],[91.57,92.08,91.3,91.64],[92.21,92.21,90,90.08],[89.41,90.03,88.95,89.06],[89.21,90.03,89.07,89.66],[89.5,89.53,88.6,88.67],[89.59,89.78,87.81,88],[87.89,88.95,87.73,88.24],[88.11,89.22,88.01,88.81],[88.58,88.91,87.85,88.07],[87.55,88.55,87.55,88.36],[88.31,88.4,87.41,87.55],[88.58,88.96,87.8,87.83],[88.44,88.65,87.81,88.29],[90,90.36,88.86,89.35],[88.53,88.89,87.8,88.71],[88.48,88.66,87.74,87.87],[88.08,88.33,87.51,88.06],[87.8,88.28,87.52,88.25]]};
+  const fly3d = (() => {
+    if (typeof THREE === "undefined") return null;
+    const canvas = document.getElementById("fly3d");
+    const css = getComputedStyle(document.documentElement);
+    const col = n => css.getPropertyValue(n).trim();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const renderer = new THREE.WebGLRenderer({canvas, antialias: true, alpha: true});
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(36, 2, 0.1, 100);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x101014, 0.95));
+    const key = new THREE.DirectionalLight(0xffffff, 0.6); key.position.set(3, 7, 4); scene.add(key);
+
+    const table = new THREE.Mesh(new THREE.PlaneGeometry(14, 8),
+      new THREE.MeshStandardMaterial({color: new THREE.Color(col("--panel")), roughness: 0.95}));
+    table.rotation.x = -Math.PI / 2; scene.add(table);
+
+    function drawChart(sym) {
+      const c = document.createElement("canvas"); c.width = 512; c.height = 320;
+      const g = c.getContext("2d");
+      g.fillStyle = col("--surface"); g.fillRect(0, 0, 512, 320);
+      g.fillStyle = col("--muted"); g.font = "500 30px JetBrains Mono, monospace"; g.fillText(sym, 18, 42);
+      const rows = CANDLES[sym]; const lo = Math.min(...rows.map(r => r[2])), hi = Math.max(...rows.map(r => r[1]));
+      const y = v => 300 - (v - lo) / (hi - lo) * 230, w = 512 / rows.length;
+      rows.forEach((r, i) => {
+        const [o, h, l, cl] = r, x = i * w + w / 2, up = cl >= o;
+        g.strokeStyle = g.fillStyle = up ? col("--brand") : col("--neg");
+        g.lineWidth = 2; g.beginPath(); g.moveTo(x, y(h)); g.lineTo(x, y(l)); g.stroke();
+        const top = y(Math.max(o, cl)), bot = y(Math.min(o, cl));
+        g.fillRect(x - w * 0.28, top, w * 0.56, Math.max(2, bot - top));
+      });
+      return c;
+    }
+
+    const dish = {};
+    ORDER.forEach((sym, k) => {
+      const tex = new THREE.CanvasTexture(drawChart(sym)); tex.anisotropy = 4;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.6), new THREE.MeshBasicMaterial({map: tex}));
+      m.rotation.x = -Math.PI / 2; m.position.set((k % 3 - 1) * 3.6, 0.012, (Math.floor(k / 3) - 0.5) * 2.6);
+      scene.add(m); dish[sym] = m.position.clone();
+    });
+
+    const fly = new THREE.Group();
+    const body = new THREE.MeshStandardMaterial({color: 0x26262c, roughness: 0.55, metalness: 0.25});
+    const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); fly.add(m); return m; };
+    add(new THREE.SphereGeometry(0.17, 20, 16), body, 0, 0, 0);
+    const ab = add(new THREE.SphereGeometry(0.15, 20, 16), body, 0, -0.02, -0.34); ab.scale.set(0.9, 0.8, 1.7);
+    add(new THREE.SphereGeometry(0.12, 20, 16), body, 0, 0.02, 0.24);
+    const eyeM = new THREE.MeshStandardMaterial({color: 0x9b1c1c, roughness: 0.3});
+    [-1, 1].forEach(s => add(new THREE.SphereGeometry(0.06, 16, 12), eyeM, s * 0.09, 0.05, 0.3));
+    const tipM = new THREE.MeshBasicMaterial({color: new THREE.Color(col("--accent")), transparent: true, opacity: 0.3});
+    [-1, 1].forEach(s => {
+      const a = add(new THREE.CylinderGeometry(0.008, 0.012, 0.22, 6), body, s * 0.05, 0.1, 0.32);
+      a.rotation.set(-0.6, 0, s * -0.5);
+      add(new THREE.SphereGeometry(0.035, 10, 8), tipM, s * 0.12, 0.18, 0.4);
+    });
+    const wingM = new THREE.MeshStandardMaterial({color: 0xc8d8ff, transparent: true, opacity: 0.26, side: THREE.DoubleSide, roughness: 0.2});
+    const wings = [-1, 1].map(s => {
+      const g = new THREE.PlaneGeometry(0.62, 0.26); g.translate(s * 0.31, 0, 0);
+      const w = add(g, wingM, s * 0.03, 0.14, -0.05); w.rotation.y = s * 0.15; return w;
+    });
+    [-1, 1].forEach(s => [-0.12, 0.02, 0.16].forEach(z => {
+      const l = add(new THREE.CylinderGeometry(0.008, 0.008, 0.3, 5), body, s * 0.2, -0.12, z); l.rotation.z = s * 1.0;
+    }));
+    fly.scale.setScalar(2.2);
+    scene.add(fly);
+
+    const target = new THREE.Vector3(0, 1.0, 0.3);
+    let landed = false;
+    fly.position.copy(target);
+    const t0 = performance.now();
+
+    function goto(sym) {
+      const p = dish[sym]; if (!p) return;
+      landed = false; target.set(p.x, 1.25, p.z + 0.35);
+      const strength = Math.min(1, Object.values(STOCKS[sym].smell).reduce((a, b) => a + b, 0) / 12);
+      tipM.opacity = 0.3 + 0.7 * strength;
+      document.getElementById("cap3d").textContent = `Sniffing ${sym}`;
+    }
+    function land(sym) {
+      const p = dish[sym]; if (!p) return;
+      landed = true; target.set(p.x, 0.36, p.z + 0.35);
+      document.getElementById("cap3d").textContent = `Landed on ${sym}. Bought $0.60.`;
+    }
+    function resize() {
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      if (canvas.width !== Math.round(w * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    }
+    function frame(now) {
+      resize();
+      const t = (now - t0) / 1000, ang = 0.55 + (reduce ? 0 : t * 0.07);
+      camera.position.set(Math.sin(ang) * 8.2, 4.4, Math.cos(ang) * 8.2); camera.lookAt(0, 0.3, 0);
+      fly.position.lerp(target, 0.045);
+      const flap = landed ? 0.04 : 1.05, f = reduce ? 0 : Math.sin(t * 40) * flap;
+      wings[0].rotation.z = f; wings[1].rotation.z = -f;
+      if (!landed && !reduce) fly.position.y += Math.sin(t * 3) * 0.002;
+      fly.lookAt(target.x, fly.position.y, target.z + 0.0001);
+      renderer.render(scene, camera);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    return {goto, land};
+  })();
 
   // ---- brain schematic --------------------------------------------------
   const svg = document.getElementById("brain");
@@ -340,6 +455,7 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
     vfill.setAttribute("width", Math.max(0, Math.min(170, s.verdict/3*170)));
     vtext.textContent = `${sym} ${s.verdict.toFixed(3)}` + (s.cells? `  ·  ${s.cells.length} cells` : `  ·  ${s.n} cells (not exported in mockup)`);
     document.querySelectorAll(".card").forEach(c=>c.classList.toggle("active", c.dataset.sym===sym));
+    if (fly3d) fly3d.goto(sym);
     renderSmell(sym);
   }
 
@@ -361,7 +477,7 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
   const steps = ORDER.map(s=>({sym:s, label:`sniff ${s}`})).concat([{sym:PICK,label:"rank, then buy TSLA"}]);
   let i = steps.length-1, timer = null;
   const lbl = document.getElementById("stepLabel");
-  function go(k){ i=(k+steps.length)%steps.length; show(steps[i].sym); lbl.textContent = `${i+1} / ${steps.length}  ${steps[i].label}`; }
+  function go(k){ i=(k+steps.length)%steps.length; show(steps[i].sym); if (fly3d && i===steps.length-1) fly3d.land(PICK); lbl.textContent = `${i+1} / ${steps.length}  ${steps[i].label}`; }
   function stop(){ if(timer){ clearInterval(timer); timer=null; document.getElementById("play").textContent="Play replay"; } }
   document.getElementById("next").onclick = ()=>{ stop(); go(i+1); };
   document.getElementById("prev").onclick = ()=>{ stop(); go(i-1); };

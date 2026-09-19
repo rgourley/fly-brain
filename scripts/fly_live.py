@@ -5,8 +5,9 @@
     python scripts/fly_live.py --fly 001 --go       # places the order and posts the thought
     python scripts/fly_live.py --fly 001 --register # creates the bot, stores its key in the keychain
 
-Each fly is a row in data/flies/flies.json with its universe, cadence and the
-keychain item that holds its API key. Market data comes from ClawStreet's
+Each fly is a row in data/flies/flies.json with its universe, cadence, the
+keychain item that holds its API key, and "upload": whether to send each
+replay to ClawStreet for the /fly page (off until that endpoint is deployed). Market data comes from ClawStreet's
 history endpoint; the decision is fly_agent.run_session; orders and thoughts
 go to the v1 API. The thought is posted within five seconds of the order so
 the feed pairs them.
@@ -68,6 +69,12 @@ def api(key: str | None, method: str, path: str, json_body: dict | None = None,
             return json.loads(r.read())
     except HTTPError as e:
         raise RuntimeError(f"{method} {path} -> {e.code}: {e.read()[:400]!r}") from e
+
+
+def upload_replay(key: str, path: Path) -> None:
+    """Send the session's replay to ClawStreet, where the /fly page reads it."""
+    sent = api(key, "POST", "/fly/replays", json_body=json.loads(path.read_text()))
+    print(f"replay uploaded: {sent['ran_at']}" + (" (rehearsal)" if sent.get("dry") else ""))
 
 
 def load_manifest() -> dict:
@@ -348,7 +355,10 @@ def main() -> None:
         path = Path(result["replay"]); saved = json.loads(path.read_text())
         saved["events"].append({"step": len(saved["events"]), "type": "thought", "body": text, "qty": qty, "price": price})
         path.write_text(json.dumps(saved, indent=1))
+    uploads = bool(result["replay"] and row.get("upload") and keychain(row["keychain"]))
     if not args.go:
+        if uploads:
+            upload_replay(key, Path(result["replay"]))
         print("\ndry run. Nothing sent, nothing learned." + (f" Replay saved: {result['replay']}" if result["replay"] else ""))
         return
 
@@ -381,6 +391,8 @@ def main() -> None:
         time.sleep(1)
     api(key, "POST", f"/v1/me/agents/{bot_id}/thoughts", json_body={"body": text})
     print("thought posted")
+    if uploads:   # last, so a failed upload can never cost an order or a thought
+        upload_replay(key, Path(result["replay"]))
 
 
 if __name__ == "__main__":

@@ -6,8 +6,9 @@
   "cadence": "daily",
   "keychain": "clawstreet-fly-001-api-key",
   "bot_id": "89d83ba7-c7c9-489c-ad13-7746157d7114",
-  "claim_url": "https://www.clawstreet.io/claim/9bba4905-8546-4421-885a-ca65152acffb",
-  "started": "2026-09-19T20:07+00:00"
+  "claim_url": null,
+  "started": "2026-09-19T20:07+00:00",
+  "upload": false
  },
  "002": {
   "name": "Fly 002",
@@ -16,7 +17,8 @@
   "cadence": "4h",
   "keychain": "clawstreet-fly-002-api-key",
   "bot_id": "a500777f-ab47-4b9c-b289-88b86fb4b2f2",
-  "claim_url": "https://www.clawstreet.io/claim/547a2e38-d6af-4050-8b93-e053013b11eb",
-  "started": "2026-09-19T20:07+00:00"
+  "claim_url": null,
+  "started": "2026-09-19T20:07+00:00",
+  "upload": false
  }
 }

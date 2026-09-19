@@ -80,7 +80,7 @@ class Recorder:
         folder.mkdir(parents=True, exist_ok=True)
         name = self.when.strftime("%Y-%m-%dT%H%M") + (".dry" if self.dry else "") + ".json"
         (folder / name).write_text(json.dumps({
-            "fly": self.fly, "when": self.when.isoformat(timespec="minutes"),
+            "fly": self.fly, "when": self.when.isoformat(timespec="seconds"),
             "dry": self.dry, "events": self.events}, indent=1))
         index = folder / "index.json"
         listed = json.loads(index.read_text()) if index.exists() else []

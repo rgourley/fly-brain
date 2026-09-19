@@ -329,6 +329,9 @@
 <script src="brain3d.js?v=1789859806"></script>
 <script>
 (async () => {
+  // Switching flies reloads the page. Start at the top, not wherever the last one was scrolled to.
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+  if (!location.hash) window.scrollTo(0, 0);
   // ---- the session on screen. The inlined one (session 1, 21 Sep 2026) is the
   // fallback; a fly's latest replay from flies/<id>/replays/ replaces it.
   let ORDER = ["NVDA","AAPL","SOFI","TSLA","PFE","KO"];      // sniff order
@@ -432,7 +435,9 @@
   {
     const pick = document.getElementById("flypick");
     pick.innerHTML = (META.roster || [{id: META.fly, label: META.name}]).map(f => `<option value="${f.id}"${f.id === META.fly ? " selected" : ""}>${f.label}</option>`).join("");
-    pick.onchange = () => { location.search = "?fly=" + pick.value; };
+    // A plain path plus the query: assigning location.search alone keeps a "#how" left over from the
+    // jump link, and the reloaded page would scroll down to it.
+    pick.onchange = () => { location.href = location.pathname + "?fly=" + pick.value; };
   }
   if (fly3d) setInterval(() => { const n = fly3d.needs(); document.querySelectorAll("[data-need]").forEach(b => { b.style.width = Math.round(n[b.dataset.need] * 100) + "%"; }); }, 500);
   // Sessions run once a trading day. Count down to the next one.

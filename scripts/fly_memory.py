@@ -27,6 +27,11 @@ POSITIONS = ROOT / "data" / "fly_positions.json"
 # Chosen parameters. Declared here because they are not from the connectome.
 LEARNING_RATE = 0.05     # how far one outcome moves the synapses it touches
 DECAY_RATE = 0.02        # how far every synapse drifts home each session
+# Measured, not chosen: a verdict wanders this much across five sessions on
+# a stock whose readings did not move (exit_test.py). A holding is only
+# "liked less" when today's verdict is below the purchase verdict by more
+# than this. Without it, two noisy sniffs in a row sold SOFI for no reason.
+NOISE_FLOOR = 0.36
 
 
 @dataclass
@@ -38,8 +43,9 @@ class OpenPosition:
     qty: float
     price: float
     cells: list[int]      # Kenyon cells firing when the fly chose it
-    verdict: float
+    verdict: float        # what the fly thought of it at purchase
     smell: dict[str, float] = field(default_factory=dict)
+    cooling: int = 0      # sessions in a row it has liked this less than at purchase
 
 
 class FlyMemory:
@@ -54,6 +60,9 @@ class FlyMemory:
         self.to_punish = baseline_punish.copy()
         self.sessions = 0
         self.positions: list[OpenPosition] = []
+        # Sold but not yet told the result. Kept so the outcome can still be
+        # credited to the cells that chose the trade when the fill comes back.
+        self.pending: list[OpenPosition] = []
 
     # ---- persistence -------------------------------------------------
 
@@ -67,14 +76,20 @@ class FlyMemory:
                 self.sessions = int(saved["sessions"])
         if POSITIONS.exists():
             raw = json.loads(POSITIONS.read_text())
-            self.positions = [OpenPosition(**p) for p in raw]
+            if isinstance(raw, dict):
+                self.positions = [OpenPosition(**p) for p in raw.get("open", [])]
+                self.pending = [OpenPosition(**p) for p in raw.get("pending", [])]
+            else:
+                self.positions = [OpenPosition(**p) for p in raw]
 
     def save(self) -> None:
         STATE.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(STATE, to_reward=self.to_reward,
                             to_punish=self.to_punish, sessions=self.sessions)
-        POSITIONS.write_text(json.dumps(
-            [p.__dict__ for p in self.positions], indent=1))
+        POSITIONS.write_text(json.dumps({
+            "open": [p.__dict__ for p in self.positions],
+            "pending": [p.__dict__ for p in self.pending],
+        }, indent=1))
 
     # ---- the fly's opinion -------------------------------------------
 
@@ -117,11 +132,41 @@ class FlyMemory:
         self.positions.append(position)
 
     def close(self, symbol: str, profitable: bool) -> OpenPosition | None:
-        """Settle a position and credit the outcome to the cells that chose it."""
+        """Settle a trade and credit the outcome to the cells that chose it.
+
+        Looks in both open and pending, because a position the fly decided to
+        sell leaves the open list before its fill and result come back.
+        """
+        for bucket in (self.pending, self.positions):
+            for i, p in enumerate(bucket):
+                if p.symbol == symbol:
+                    self.learn(p.cells, profitable)
+                    return bucket.pop(i)
+        return None
+
+    def reconsider(self, symbol: str, verdict_today: float) -> bool:
+        """Compare a holding against the opinion it was bought on.
+
+        Returns True when the fly has liked it less than at purchase for two
+        sessions running. Two, not one, because run-to-run noise is about
+        0.36 and a real change in the setup is about 0.95. One low reading
+        can be the fly wobbling. Two is the setup having moved.
+        """
+        for p in self.positions:
+            if p.symbol == symbol:
+                if verdict_today < p.verdict - NOISE_FLOOR:
+                    p.cooling += 1
+                else:
+                    p.cooling = 0
+                return p.cooling >= 2
+        return False
+
+    def sell(self, symbol: str) -> OpenPosition | None:
+        """Move a holding to pending. It is credited when the result arrives."""
         for i, p in enumerate(self.positions):
             if p.symbol == symbol:
-                self.learn(p.cells, profitable)
-                return self.positions.pop(i)
+                self.pending.append(self.positions.pop(i))
+                return p
         return None
 
     def held(self) -> set[str]:

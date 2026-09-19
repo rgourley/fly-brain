@@ -1,21 +1,23 @@
-"""One trading session for the fly.
+"""One trading session for the fly, recorded so it can be replayed.
 
 The loop, in order:
 
-  settle    ask which positions closed since last time, and credit each
-            outcome to the Kenyon cells that were firing when the fly
-            chose it, however long ago that was
-  forget    drift every synapse a little back toward the connectome, so
-            lessons that stop being confirmed fade
-  smell     turn each stock on the board into a smell and run it
-  decide    read the verdict, buy the best one it does not already hold,
-            size off how far ahead it is
-  remember  write the synapses and the open positions to disk
+  settle     credit each closed trade to the Kenyon cells that were firing
+             when the fly chose it, however long ago that was
+  forget     drift every synapse a little back toward the connectome
+  smell      run every stock on the board through the olfactory circuit
+  reconsider re-smell what it holds; two sessions running of liking a
+             holding less than at purchase, and it sells
+  buy        the best thing it does not hold, sized off the margin
+  remember   write the synapses, the positions and the replay to disk
+
+Every step writes an event to the replay, so the page can play the session
+back exactly as it happened. Nothing is drawn later that did not occur.
 
 Market data and orders go through ClawStreet. Everything else is local.
 """
 
-import os
+import json
 import sys
 from dataclasses import dataclass
 from datetime import date
@@ -34,6 +36,7 @@ from fly_memory import FlyMemory, OpenPosition, from_connectome
 PRESENTATION_MS = 50.0
 MAX_POSITIONS = 6
 BOARD_SIZE = 8
+REPLAYS = ROOT / "data" / "replays"
 # Spikes are not dollars. This is ours and it is declared.
 DOLLARS_PER_VERDICT = 250.0
 MAX_POSITION = 2000.0
@@ -41,13 +44,45 @@ MAX_POSITION = 2000.0
 
 @dataclass(frozen=True)
 class Candidate:
-    """One stock on the board, as the fly sees it."""
+    """One stock on the board, as the fly saw it."""
 
     symbol: str
     reading: dict
     activations: dict[str, float]
     cells: np.ndarray
     verdict: float
+
+
+class Recorder:
+    """The session as a list of events, in the order they happened."""
+
+    def __init__(self, day: date) -> None:
+        self.day = day
+        self.events: list[dict] = []
+
+    def add(self, kind: str, **fields: object) -> None:
+        self.events.append({"step": len(self.events), "type": kind, **fields})
+
+    def write(self) -> Path:
+        REPLAYS.mkdir(parents=True, exist_ok=True)
+        path = REPLAYS / f"{self.day.isoformat()}.json"
+        path.write_text(json.dumps({"date": self.day.isoformat(),
+                                    "events": self.events}, indent=1))
+        return path
+
+
+def compose_board(held: set[str], universe: list[str], seed: int,
+                  size: int = BOARD_SIZE) -> list[str]:
+    """Holdings keep their slots. The rest come fresh from the universe.
+
+    Holdings must be on the board so they get re-smelled and can be sold.
+    The cap on positions is below the board size, so at least two new names
+    arrive every session and the fly can never get stuck in a closed world.
+    """
+    rng = np.random.default_rng(seed)
+    fresh = [s for s in universe if s not in held]
+    picks = list(rng.choice(fresh, size=max(0, size - len(held)), replace=False))
+    return sorted(held) + [str(s) for s in picks]
 
 
 def kenyon_cells(fly: BrianFly) -> tuple[list[int], list[int]]:
@@ -86,73 +121,111 @@ def sniff(fly: BrianFly, memory: FlyMemory, kc_index: list[int],
 def size(verdict: float, runner_up: float) -> float:
     """How much to buy, from how far ahead the winner is.
 
-    A clear favourite gets a real position. One that barely edges out second
-    place gets a token. Untrained, every verdict sits near the same value so
-    the margins are small and the fly bets little, which is the right
-    behaviour for an animal that knows nothing yet.
+    Untrained, every verdict sits near the same value, so margins are small
+    and the fly bets little. That is the right behaviour for an animal that
+    knows nothing yet.
     """
     margin = max(verdict - runner_up, 0.0)
     return float(min(margin * DOLLARS_PER_VERDICT, MAX_POSITION))
 
 
 def run_session(board: dict[str, dict], closed: dict[str, bool],
-                dry_run: bool = True) -> dict:
+                dry_run: bool = True, day: date | None = None) -> dict:
     """One decision. `closed` maps a symbol to whether its trade made money."""
+    day = day or date.today()
+    rec = Recorder(day)
     fly = BrianFly()
     kc_index, kc_bodies = kenyon_cells(fly)
     memory = from_connectome(kc_bodies)
     memory.load()
-    started_at = memory.drift()
+    rec.add("start", session=memory.sessions + 1, held=sorted(memory.held()),
+            drift=round(memory.drift(), 5))
 
-    settled = []
     for symbol, profitable in closed.items():
         position = memory.close(symbol, profitable)
         if position:
-            settled.append((symbol, profitable))
+            rec.add("settle", symbol=symbol, profitable=profitable,
+                    cells=len(position.cells), opened=position.opened,
+                    compartment="reward" if profitable else "punishment")
 
     memory.forget()
+    rec.add("forget", drift=round(memory.drift(), 5))
 
     channel_map = load_channel_map()
-    seed = int(date.today().strftime("%Y%m%d"))
-    candidates = [
-        sniff(fly, memory, kc_index, channel_map, symbol,
-              reading_from_history(entry), seed + i)
-        for i, (symbol, entry) in enumerate(board.items())
-    ]
-    candidates.sort(key=lambda c: c.verdict, reverse=True)
-
+    seed = int(day.strftime("%Y%m%d"))
     held = memory.held()
-    pick = next((c for c in candidates if c.symbol not in held), None)
-    runner_up = next((c.verdict for c in candidates
-                      if pick and c.symbol != pick.symbol), 0.0)
+    candidates: list[Candidate] = []
+    for i, (symbol, entry) in enumerate(board.items()):
+        c = sniff(fly, memory, kc_index, channel_map, symbol,
+                  reading_from_history(entry), seed + i)
+        candidates.append(c)
+        rec.add("sniff", symbol=symbol, held=symbol in held,
+                channels={k: round(v, 3) for k, v in c.activations.items()},
+                cells=[int(x) for x in np.flatnonzero(c.cells)],
+                verdict=round(c.verdict, 3))
+
+    sold = []
+    for c in candidates:
+        if c.symbol not in held:
+            continue
+        then = next(p.verdict for p in memory.positions if p.symbol == c.symbol)
+        should_sell = memory.reconsider(c.symbol, c.verdict)
+        cooling = next(p.cooling for p in memory.positions if p.symbol == c.symbol)
+        rec.add("reconsider", symbol=c.symbol, verdict_then=round(then, 3),
+                verdict_now=round(c.verdict, 3), cooling=cooling)
+        if should_sell:
+            memory.sell(c.symbol)
+            sold.append(c.symbol)
+            rec.add("sell", symbol=c.symbol,
+                    reason="liked it less than at purchase, two sessions running")
+
+    candidates.sort(key=lambda c: c.verdict, reverse=True)
+    rec.add("rank", order=[(c.symbol, round(c.verdict, 3)) for c in candidates])
+
+    # Margin is measured against the next stock the fly could actually buy.
+    # A holding or a just-sold name can outscore the pick, and it must not
+    # zero the position: that happened when S0 was sold and nothing was bought
+    # for two sessions.
+    taken = memory.held() | {p.symbol for p in memory.pending}
+    eligible = [c for c in candidates if c.symbol not in taken]
+    pick = eligible[0] if eligible else None
+    runner_up = eligible[1].verdict if len(eligible) > 1 else 0.0
 
     order = None
-    if pick and len(held) < MAX_POSITIONS:
+    if pick and len(memory.held()) < MAX_POSITIONS:
         dollars = size(pick.verdict, runner_up)
         if dollars > 0:
             order = {"symbol": pick.symbol, "dollars": round(dollars, 2),
                      "verdict": round(pick.verdict, 3),
                      "margin": round(pick.verdict - runner_up, 3)}
+            rec.add("buy", **order, smell=describe(pick.activations))
             if not dry_run:
                 memory.open(OpenPosition(
-                    symbol=pick.symbol, opened=date.today().isoformat(),
+                    symbol=pick.symbol, opened=day.isoformat(),
                     qty=0.0, price=0.0,
                     cells=[int(i) for i in np.flatnonzero(pick.cells)],
                     verdict=pick.verdict,
                     smell={k: round(v, 2) for k, v in pick.activations.items()},
                 ))
 
+    rec.add("end", held=sorted(memory.held()),
+            pending=sorted(p.symbol for p in memory.pending),
+            drift=round(memory.drift(), 5))
+
+    replay = None
     if not dry_run:
         memory.sessions += 1
         memory.save()
+        replay = rec.write()
 
     return {
         "session": memory.sessions,
-        "settled": settled,
+        "settled": [(s, p) for s, p in closed.items()],
         "ranking": [(c.symbol, round(c.verdict, 3)) for c in candidates],
+        "sold": sold,
         "order": order,
         "held": sorted(memory.held()),
-        "drift_before": round(started_at, 5),
-        "drift_after": round(memory.drift(), 5),
-        "smell_of_pick": describe(pick.activations) if pick else "",
+        "pending": sorted(p.symbol for p in memory.pending),
+        "drift": round(memory.drift(), 5),
+        "replay": str(replay) if replay else None,
     }

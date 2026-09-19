@@ -245,7 +245,7 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
   </footer>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
 <script>
 (() => {
   // ---- real data from session 1, 21 Sep 2026 ------------------------
@@ -310,7 +310,7 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
     scene.add(new THREE.HemisphereLight(0xffffff, 0x101014, 0.95));
     const key = new THREE.DirectionalLight(0xffffff, 0.6); key.position.set(3, 7, 4); scene.add(key);
 
-    const table = new THREE.Mesh(new THREE.PlaneGeometry(14, 8),
+    const table = new THREE.Mesh(new THREE.PlaneGeometry(22, 13),
       new THREE.MeshStandardMaterial({color: new THREE.Color(col("--panel")), roughness: 0.95}));
     table.rotation.x = -Math.PI / 2; scene.add(table);
 
@@ -318,9 +318,12 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
       const c = document.createElement("canvas"); c.width = 512; c.height = 320;
       const g = c.getContext("2d");
       g.fillStyle = col("--surface"); g.fillRect(0, 0, 512, 320);
-      g.fillStyle = col("--muted"); g.font = "500 30px JetBrains Mono, monospace"; g.fillText(sym, 18, 42);
       const rows = CANDLES[sym]; const lo = Math.min(...rows.map(r => r[2])), hi = Math.max(...rows.map(r => r[1]));
-      const y = v => 300 - (v - lo) / (hi - lo) * 230, w = 512 / rows.length;
+      const y = v => 222 - (v - lo) / (hi - lo) * 196, w = 512 / rows.length;
+      g.fillStyle = col("--elev"); g.fillRect(0, 240, 512, 80);
+      g.fillStyle = col("--text"); g.font = "600 58px JetBrains Mono, monospace"; g.textBaseline = "middle"; g.fillText(sym, 22, 281);
+      g.fillStyle = col("--muted"); g.font = "500 26px JetBrains Mono, monospace"; g.textAlign = "right";
+      g.fillText("$" + STOCKS[sym].price.toFixed(2), 494, 281); g.textAlign = "left";
       rows.forEach((r, i) => {
         const [o, h, l, cl] = r, x = i * w + w / 2, up = cl >= o;
         g.strokeStyle = g.fillStyle = up ? col("--brand") : col("--neg");
@@ -335,22 +338,29 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
     ORDER.forEach((sym, k) => {
       const tex = new THREE.CanvasTexture(drawChart(sym)); tex.anisotropy = 4;
       const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.6), new THREE.MeshBasicMaterial({map: tex}));
-      m.rotation.x = -Math.PI / 2; m.position.set((k % 3 - 1) * 3.6, 0.012, (Math.floor(k / 3) - 0.5) * 2.6);
+      m.rotation.x = -Math.PI / 2; m.position.set((k % 3 - 1) * 5.4, 0.012, (Math.floor(k / 3) - 0.5) * 4.0);
       scene.add(m); dish[sym] = m.position.clone();
     });
 
     const fly = new THREE.Group();
-    const body = new THREE.MeshStandardMaterial({color: 0x26262c, roughness: 0.55, metalness: 0.25});
+    const tan = new THREE.MeshStandardMaterial({color: 0xb98a4e, roughness: 0.6, metalness: 0.05});
+    const dark = new THREE.MeshStandardMaterial({color: 0x2a1d12, roughness: 0.6, metalness: 0.05});
+    const body = dark;
     const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); fly.add(m); return m; };
-    add(new THREE.SphereGeometry(0.17, 20, 16), body, 0, 0, 0);
-    const ab = add(new THREE.SphereGeometry(0.15, 20, 16), body, 0, -0.02, -0.34); ab.scale.set(0.9, 0.8, 1.7);
-    add(new THREE.SphereGeometry(0.12, 20, 16), body, 0, 0.02, 0.24);
-    const eyeM = new THREE.MeshStandardMaterial({color: 0x9b1c1c, roughness: 0.3});
-    [-1, 1].forEach(s => add(new THREE.SphereGeometry(0.06, 16, 12), eyeM, s * 0.09, 0.05, 0.3));
+    add(new THREE.SphereGeometry(0.17, 20, 16), tan, 0, 0, 0);
+    // Abdomen as stacked segments, tan and dark alternating: the stripes.
+    [[0, 0.15, tan], [-0.12, 0.145, dark], [-0.22, 0.135, tan], [-0.31, 0.12, dark], [-0.39, 0.1, tan], [-0.46, 0.075, dark]]
+      .forEach(([z, r, mat]) => { const seg = add(new THREE.SphereGeometry(r, 18, 14), mat, 0, -0.03, -0.2 + z); seg.scale.set(1, 0.8, 1.15); });
+    add(new THREE.SphereGeometry(0.11, 20, 16), tan, 0, 0.02, 0.24);
+    const eyeM = new THREE.MeshStandardMaterial({color: 0xb3261e, roughness: 0.25});
+    [-1, 1].forEach(s => { const e = add(new THREE.SphereGeometry(0.085, 18, 14), eyeM, s * 0.085, 0.04, 0.29); e.scale.set(0.8, 1.1, 0.9); });
+    // Halteres, the little club-shaped balancers behind the wings.
+    [-1, 1].forEach(s => add(new THREE.SphereGeometry(0.025, 8, 6), tan, s * 0.2, 0.08, -0.14));
+    const ants = [];
     const tipM = new THREE.MeshBasicMaterial({color: new THREE.Color(col("--accent")), transparent: true, opacity: 0.3});
     [-1, 1].forEach(s => {
       const a = add(new THREE.CylinderGeometry(0.008, 0.012, 0.22, 6), body, s * 0.05, 0.1, 0.32);
-      a.rotation.set(-0.6, 0, s * -0.5);
+      a.rotation.set(-0.6, 0, s * -0.5); ants.push(a);
       add(new THREE.SphereGeometry(0.035, 10, 8), tipM, s * 0.12, 0.18, 0.4);
     });
     const wingM = new THREE.MeshStandardMaterial({color: 0xc8d8ff, transparent: true, opacity: 0.26, side: THREE.DoubleSide, roughness: 0.2});
@@ -364,41 +374,82 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
     fly.scale.setScalar(2.2);
     scene.add(fly);
 
-    const target = new THREE.Vector3(0, 1.0, 0.3);
-    let landed = false;
-    fly.position.copy(target);
+    // Behaviour. The fly flies to a dish, lands, walks it while its antennae
+    // work, stays a while, and leaves. How long it stays is the verdict, so
+    // the loitering is a measurement rather than a flourish.
+    const AIR = 1.3, GROUND = 0.36;
+    const target = new THREE.Vector3(0, AIR, 0.3);
+    let mode = "idle", waypoints = [], dwellUntil = 0, onDone = null, current = PICK;
+    fly.position.set(0, AIR, 0.3);
     const t0 = performance.now();
+    const jitter = (p, dx, dz) => new THREE.Vector3(p.x + (Math.random() * 2 - 1) * dx, GROUND, p.z + (Math.random() * 2 - 1) * dz);
 
-    function goto(sym) {
-      const p = dish[sym]; if (!p) return;
-      landed = false; target.set(p.x, 1.25, p.z + 0.35);
+    function visit(sym, verdict, done) {
+      const p = dish[sym]; if (!p) { done && done(); return; }
+      current = sym; onDone = done || null;
       const strength = Math.min(1, Object.values(STOCKS[sym].smell).reduce((a, b) => a + b, 0) / 12);
       tipM.opacity = 0.3 + 0.7 * strength;
-      document.getElementById("cap3d").textContent = `Sniffing ${sym}`;
+      waypoints = [jitter(p, 0.9, 0.5), jitter(p, 0.9, 0.5), jitter(p, 0.6, 0.35)];
+      dwellUntil = 600 + Math.max(0, verdict) / 3 * 1600;
+      target.set(p.x + (Math.random() - 0.5) * 0.6, AIR, p.z + 0.4); mode = "fly";
+      document.getElementById("cap3d").textContent = `Flying to ${sym}`;
     }
-    function land(sym) {
+    function settle(sym, done) {
       const p = dish[sym]; if (!p) return;
-      landed = true; target.set(p.x, 0.36, p.z + 0.35);
-      document.getElementById("cap3d").textContent = `Landed on ${sym}. Bought $0.60.`;
+      current = sym; onDone = done || null; waypoints = [new THREE.Vector3(p.x, GROUND, p.z + 0.1)];
+      dwellUntil = 1e9; target.set(p.x, AIR, p.z + 0.4); mode = "fly";
+      document.getElementById("cap3d").textContent = `Going back to ${sym}`;
+    }
+    function goto(sym) { visit(sym, STOCKS[sym].verdict, null); }
+    function abort() { onDone = null; }
+
+    function step(dt, now) {
+      if (mode === "fly") {
+        fly.position.lerp(target, Math.min(1, dt * 2.6));
+        if (fly.position.distanceTo(target) < 0.08) { target.set(target.x, GROUND, target.z); mode = "land"; }
+      } else if (mode === "land") {
+        fly.position.lerp(target, Math.min(1, dt * 3.2));
+        if (fly.position.distanceTo(target) < 0.04) { mode = "walk"; document.getElementById("cap3d").textContent = `Sniffing ${current}`; }
+      } else if (mode === "walk") {
+        const w = waypoints[0];
+        if (!w) { mode = "dwell"; dwellUntil = now + dwellUntil; return; }
+        const d = w.clone().sub(fly.position); const dist = d.length();
+        if (dist < 0.05) { waypoints.shift(); return; }
+        fly.position.add(d.normalize().multiplyScalar(Math.min(dist, 0.75 * dt)));
+        fly.lookAt(w.x, fly.position.y, w.z);
+      } else if (mode === "dwell") {
+        if (now >= dwellUntil) {
+          mode = "idle";
+          if (onDone) { const f = onDone; onDone = null; f(); }
+          else document.getElementById("cap3d").textContent = `Staying on ${current}`;
+        }
+      }
+      if (mode === "fly" || mode === "land") fly.lookAt(target.x, fly.position.y, target.z + 0.0001);
+    }
+    let last = t0;
+    function frame(now) {
+      resize();
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const t = (now - t0) / 1000, ang = 0.55 + (reduce ? 0 : t * 0.045);
+      camera.position.set(Math.sin(ang) * 11.5, 6.2, Math.cos(ang) * 11.5); camera.lookAt(0, 0.2, 0);
+      if (reduce) { const q = dish[current]; if (q) fly.position.set(q.x, GROUND, q.z + 0.1); }
+      else step(dt, now);
+      const airborne = mode === "fly" || mode === "land";
+      const f = reduce ? 0 : Math.sin(t * 42) * (airborne ? 1.05 : 0.0);
+      wings[0].rotation.z = f; wings[1].rotation.z = -f;
+      const sniff = (mode === "walk" || mode === "dwell") && !reduce ? Math.sin(t * 9) * 0.18 : 0;
+      ants[0].rotation.y = sniff; ants[1].rotation.y = -sniff;
+      if (mode === "dwell" && !reduce) fly.rotation.y += Math.sin(t * 1.7) * 0.004;
+      renderer.render(scene, camera);
+      requestAnimationFrame(frame);
     }
     function resize() {
       const w = canvas.clientWidth, h = canvas.clientHeight;
       if (canvas.width !== Math.round(w * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
     }
-    function frame(now) {
-      resize();
-      const t = (now - t0) / 1000, ang = 0.55 + (reduce ? 0 : t * 0.07);
-      camera.position.set(Math.sin(ang) * 8.2, 4.4, Math.cos(ang) * 8.2); camera.lookAt(0, 0.3, 0);
-      fly.position.lerp(target, 0.045);
-      const flap = landed ? 0.04 : 1.05, f = reduce ? 0 : Math.sin(t * 40) * flap;
-      wings[0].rotation.z = f; wings[1].rotation.z = -f;
-      if (!landed && !reduce) fly.position.y += Math.sin(t * 3) * 0.002;
-      fly.lookAt(target.x, fly.position.y, target.z + 0.0001);
-      renderer.render(scene, camera);
-      requestAnimationFrame(frame);
-    }
+    settle(PICK, null);
     requestAnimationFrame(frame);
-    return {goto, land};
+    return {visit, settle, goto, abort};
   })();
 
   // ---- brain schematic --------------------------------------------------
@@ -447,7 +498,7 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
   const vtext = text(870, 342, "", "cap", "end");
   text(700, 372, "reward side 41 cells  −  punishment side 56 cells", "cap");
 
-  function show(sym){
+  function show(sym, quiet){
     const s = STOCKS[sym];
     gloms.forEach((g,i)=>{ const v=s.smell[CH[i]]||0; g.setAttribute("fill-opacity", 0.06+0.94*v); g.setAttribute("r", 9+3*v); });
     kcs.forEach(k=>k.classList.remove("on"));
@@ -455,7 +506,7 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
     vfill.setAttribute("width", Math.max(0, Math.min(170, s.verdict/3*170)));
     vtext.textContent = `${sym} ${s.verdict.toFixed(3)}` + (s.cells? `  ·  ${s.cells.length} cells` : `  ·  ${s.n} cells (not exported in mockup)`);
     document.querySelectorAll(".card").forEach(c=>c.classList.toggle("active", c.dataset.sym===sym));
-    if (fly3d) fly3d.goto(sym);
+    if (fly3d && !quiet) fly3d.goto(sym);
     renderSmell(sym);
   }
 
@@ -475,18 +526,30 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
 
   // ---- replay ------------------------------------------------------------
   const steps = ORDER.map(s=>({sym:s, label:`sniff ${s}`})).concat([{sym:PICK,label:"rank, then buy TSLA"}]);
-  let i = steps.length-1, timer = null;
-  const lbl = document.getElementById("stepLabel");
-  function go(k){ i=(k+steps.length)%steps.length; show(steps[i].sym); if (fly3d && i===steps.length-1) fly3d.land(PICK); lbl.textContent = `${i+1} / ${steps.length}  ${steps[i].label}`; }
-  function stop(){ if(timer){ clearInterval(timer); timer=null; document.getElementById("play").textContent="Play replay"; } }
+  let i = steps.length-1, timer = null, playing = false;
+  const lbl = document.getElementById("stepLabel"), playBtn = document.getElementById("play");
+  function go(k, quiet){ i=(k+steps.length)%steps.length; show(steps[i].sym, quiet); lbl.textContent = `${i+1} / ${steps.length}  ${steps[i].label}`; }
+  function stop(){ playing=false; if(timer){ clearInterval(timer); timer=null; } if(fly3d) fly3d.abort(); playBtn.textContent="Play replay"; }
   document.getElementById("next").onclick = ()=>{ stop(); go(i+1); };
   document.getElementById("prev").onclick = ()=>{ stop(); go(i-1); };
-  document.getElementById("play").onclick = ()=>{
-    if(timer){ stop(); return; }
+  playBtn.onclick = ()=>{
+    if(playing){ stop(); return; }
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if(reduce){ go(i+1); return; }
-    document.getElementById("play").textContent = "Pause";
-    go(-1); timer = setInterval(()=>{ if(i>=steps.length-1){ stop(); return; } go(i+1); }, 1100);
+    playing = true; playBtn.textContent = "Pause";
+    if(fly3d){
+      let k = -1;
+      const next = ()=>{
+        if(!playing) return;
+        k++; if(k >= steps.length){ stop(); return; }
+        go(k, true);
+        if(k === steps.length-1) fly3d.settle(PICK, ()=>stop());
+        else fly3d.visit(steps[k].sym, STOCKS[steps[k].sym].verdict, next);
+      };
+      next();
+    } else {
+      go(-1); timer = setInterval(()=>{ if(i>=steps.length-1){ stop(); return; } go(i+1); }, 1100);
+    }
   };
 
   // ---- smell card ---------------------------------------------------------

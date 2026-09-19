@@ -8,5 +8,15 @@
   "bot_id": null,
   "claim_url": null,
   "started": null
+ },
+ "002": {
+  "name": "Fly 002",
+  "ticker": "FLY2",
+  "universe": "crypto",
+  "cadence": "4h",
+  "keychain": "clawstreet-fly-002-api-key",
+  "bot_id": null,
+  "claim_url": null,
+  "started": null
  }
 }

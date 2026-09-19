@@ -14,7 +14,10 @@ window.Fly3D = function (opts) {
   let held = [];   // what it owns; off duty it goes back to check on these
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const BODY = 0.3, WALK = 1.0, FLIGHT = 16, AIR = 5;
-  const CARD = {w: 30, h: 18, dx: 36, dz: 25};
+  // Six cards sit three across at a foot wide; a bigger board goes four across, a little smaller.
+  const COLS = order.length > 6 ? 4 : 3;
+  const CARD = COLS === 4 ? {w: 25, h: 15, dx: 27.5, dz: 23} : {w: 30, h: 18, dx: 36, dz: 25};
+  const short = sym => sym.replace(/^X:/, "").replace(/USD$/, "");
   const TABLE = {x: 52, z: 31};
 
   const rnd = (a, b) => a + Math.random() * (b - a);
@@ -128,8 +131,8 @@ window.Fly3D = function (opts) {
     const c = document.createElement("canvas"); c.width = 1024; c.height = 154;
     const g = c.getContext("2d");
     g.fillStyle = col("--elev"); g.fillRect(0, 0, 1024, 154);
-    g.fillStyle = col("--text"); g.font = "600 108px JetBrains Mono, monospace"; g.textBaseline = "middle"; g.fillText(sym, 36, 80);
-    g.fillStyle = col("--muted"); g.font = "500 56px JetBrains Mono, monospace"; g.textAlign = "right"; g.fillText("$" + stocks[sym].price.toFixed(2), 988, 84);
+    g.fillStyle = col("--text"); g.font = "600 108px JetBrains Mono, monospace"; g.textBaseline = "middle"; g.fillText(short(sym), 36, 80);
+    g.fillStyle = col("--muted"); g.font = "500 56px JetBrains Mono, monospace"; g.textAlign = "right"; { const px = stocks[sym].price; g.fillText("$" + (px >= 1000 ? Math.round(px).toLocaleString("en-US") : px >= 1 ? px.toFixed(2) : px.toPrecision(3)), 988, 84); }
     return c;
   }
   const paper = (canvasEl, w, h) => {
@@ -140,7 +143,7 @@ window.Fly3D = function (opts) {
   };
   const dish = {};
   order.forEach((sym, k) => {
-    const x = (k % 3 - 1) * CARD.dx, z = (Math.floor(k / 3) - 0.5) * CARD.dz;
+    const x = (k % COLS - (COLS - 1) / 2) * CARD.dx, z = (Math.floor(k / COLS) - 0.5) * CARD.dz;
     const card = paper(drawChart(sym), CARD.w, CARD.h); card.position.set(x, 0.02, z); scene.add(card);
     const label = paper(drawLabel(sym), CARD.w, CARD.h * 0.25); label.position.set(x, 0.02, z + CARD.h / 2 + CARD.h * 0.125 + 0.8); scene.add(label);
     dish[sym] = new THREE.Vector3(x, 0, z);
@@ -307,7 +310,7 @@ window.Fly3D = function (opts) {
   // ---- behaviour ---------------------------------------------------------
   // The fly flies to a card, lands, walks a little on it while its antennae
   // work, tastes it, and leaves. How long it stays is the verdict.
-  let mode = "idle", waypoints = [], dwellMs = 0, dwellUntil = 0, onDone = null, current = pick;
+  let mode = "idle", waypoints = [], dwellMs = 0, dwellUntil = 0, onDone = null, current = pick || order[0];
   let flight = null, onArrive = null;   // flight: {from, to, s, len}
   const act = {feeding: false, groom: null, sniff: false};
   let heading = 0, speedNow = 0;
@@ -325,12 +328,12 @@ window.Fly3D = function (opts) {
     const land = onCard(sym, 0.7);
     waypoints = [nearby(land, 2.5), nearby(land, 2.5)];
     dwellMs = 1400 + Math.max(0, verdict) / 3 * 2600;
-    takeOff(land); say(`Flying to ${sym}`);
+    takeOff(land); say(`Flying to ${short(sym)}`);
   }
   function settle(sym, done, arrive) {
     if (!dish[sym]) return;
     current = sym; onDone = done || null; onArrive = arrive || null; act.groom = null;
-    waypoints = [nearby(dish[sym], 3)]; dwellMs = 7000; takeOff(onCard(sym, 0.4)); say(`Going back to ${sym}`);
+    waypoints = [nearby(dish[sym], 3)]; dwellMs = 7000; takeOff(onCard(sym, 0.4)); say(`Going back to ${short(sym)}`);
   }
   function goto(sym) { visit(sym, stocks[sym].verdict, null); }
   function abort() { onDone = null; onArrive = null; exploring = false; }
@@ -386,7 +389,7 @@ window.Fly3D = function (opts) {
       const ahead = tmp.clone().sub(fly.position);
       fly.position.set(tmp.x, h, tmp.z); speedNow = FLIGHT;
       if (ahead.lengthSq() > 1e-6) heading = Math.atan2(ahead.x, ahead.z);
-      if (s >= 1) { fly.position.y = 0; mode = "walk"; if (Math.random() < 0.6) groomUntil = now + 1100 + Math.random() * 900; if (dish[current] && !exploring) say(`Sniffing ${current}`); if (onArrive) { const f = onArrive; onArrive = null; f(); } }
+      if (s >= 1) { fly.position.y = 0; mode = "walk"; if (Math.random() < 0.6) groomUntil = now + 1100 + Math.random() * 900; if (dish[current] && !exploring) say(`Sniffing ${short(current)}`); if (onArrive) { const f = onArrive; onArrive = null; f(); } }
     } else if (mode === "walk") {
       const w = waypoints[0];
       if (!w) { mode = "dwell"; dwellUntil = now + dwellMs; act.feeding = !exploring || dwellFeed; act.sniff = !exploring; if (dwellFeed) say(current && false ? "" : (needs.thirst > needs.hunger ? "Drinking" : "Feeding")); return false; }
@@ -400,7 +403,7 @@ window.Fly3D = function (opts) {
     } else if (mode === "dwell") {
       if (now >= dwellUntil) {
         mode = "idle"; act.feeding = false; act.sniff = false;
-        if (onDone) { const f = onDone; onDone = null; f(); } else say(`Staying on ${current}`);
+        if (onDone) { const f = onDone; onDone = null; f(); } else say(`Staying on ${short(current)}`);
       }
     }
     fly.rotation.y = heading;
@@ -459,7 +462,7 @@ window.Fly3D = function (opts) {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; slideNow = -1; camera.clearViewOffset(); camera.updateProjectionMatrix(); }
   }
-  fly.position.set(dish[pick].x + 3, 0, dish[pick].z + 2);
+  { const home = dish[pick] || dish[order[0]]; fly.position.set(home.x + 3, 0, home.z + 2); }
   window.__fly3d = {scene, camera, renderer, fly, top: v => { debugTop = v; }, debug: () => ({mode, view, tilt, orbit, look: look.toArray(), wantLook: wantLook.toArray(), camPos: camPos.toArray(), waypoints: waypoints.length, act: {...act}, exploring, flight: flight && flight.s})};
   requestAnimationFrame(frame);
   // How busy the body is, 0 to 1: resting, grooming, walking, flying. The

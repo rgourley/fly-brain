@@ -66,9 +66,10 @@ class Recorder:
     the page can find the latest without a directory listing.
     """
 
-    def __init__(self, fly: str, when: datetime) -> None:
+    def __init__(self, fly: str, when: datetime, dry: bool = False) -> None:
         self.fly = fly
         self.when = when
+        self.dry = dry          # a rehearsal: recorded for the page, nothing traded, nothing learned
         self.events: list[dict] = []
 
     def add(self, kind: str, **fields: object) -> None:
@@ -77,12 +78,17 @@ class Recorder:
     def write(self) -> Path:
         folder = FLIES / self.fly / "replays"
         folder.mkdir(parents=True, exist_ok=True)
-        name = self.when.strftime("%Y-%m-%dT%H%M") + ".json"
+        name = self.when.strftime("%Y-%m-%dT%H%M") + (".dry" if self.dry else "") + ".json"
         (folder / name).write_text(json.dumps({
             "fly": self.fly, "when": self.when.isoformat(timespec="minutes"),
-            "events": self.events}, indent=1))
+            "dry": self.dry, "events": self.events}, indent=1))
         index = folder / "index.json"
         listed = json.loads(index.read_text()) if index.exists() else []
+        if not self.dry:
+            # A real session retires the rehearsals that came before it.
+            for old in [n for n in listed if n.endswith(".dry.json")]:
+                (folder / old).unlink(missing_ok=True)
+            listed = [n for n in listed if not n.endswith(".dry.json")]
         if name not in listed:
             listed.append(name)
         index.write_text(json.dumps(listed))
@@ -160,11 +166,11 @@ def bars_from_history(entry: dict, n: int = 20) -> list[list[float]]:
 def run_session(board: dict[str, dict], closed: dict[str, bool],
                 dry_run: bool = True, day: date | None = None,
                 fly_id: str = "001", when: datetime | None = None,
-                account: float = ACCOUNT) -> dict:
+                account: float = ACCOUNT, record: bool = False) -> dict:
     """One decision. `closed` maps a symbol to whether its trade made money."""
     when = when or datetime.now(timezone.utc)
     day = day or when.date()
-    rec = Recorder(fly_id, when)
+    rec = Recorder(fly_id, when, dry=dry_run)
     fly = BrianFly()
     kc_index, kc_bodies = kenyon_cells(fly)
     memory = from_connectome(kc_bodies, fly_id)
@@ -255,6 +261,7 @@ def run_session(board: dict[str, dict], closed: dict[str, bool],
     if not dry_run:
         memory.sessions += 1
         memory.save()
+    if not dry_run or record:
         replay = rec.write()
 
     return {

@@ -1,6 +1,7 @@
 """Run one fly against ClawStreet: fetch the board, decide, post.
 
     python scripts/fly_live.py --fly 001            # dry run: prints the plan and the thought
+    python scripts/fly_live.py --fly 001 --record   # dry run that also saves the replay for the page
     python scripts/fly_live.py --fly 001 --go       # places the order and posts the thought
     python scripts/fly_live.py --fly 001 --register # creates the bot, stores its key in the keychain
 
@@ -113,6 +114,11 @@ def closed_positions(key: str, bot_id: str, fly_positions: list[dict]) -> dict[s
 
 # ---- words -------------------------------------------------------------------
 
+def short(symbol: str) -> str:
+    """X:XRPUSD reads as XRP. Stock tickers pass through."""
+    return symbol.removeprefix("X:").removesuffix("USD") if symbol.startswith("X:") else symbol
+
+
 def thought(result: dict, board_size: int, qty: float | None, price: float | None, session: int) -> str:
     """What the fly posts. Third person, the numbers as they are, under 500 characters."""
     lines = []
@@ -120,17 +126,17 @@ def thought(result: dict, board_size: int, qty: float | None, price: float | Non
         cells = result["settled_cells"].get(sym)
         if cells is None:
             continue
-        lines.append(f"{sym} closed {'up' if won else 'down'}: dopamine to the {cells} cells that chose it, "
+        lines.append(f"{short(sym)} closed {'up' if won else 'down'}: dopamine to the {cells} cells that chose it, "
                      f"{'reward' if won else 'punishment'} side.")
     for sym in result["sold"]:
-        lines.append(f"Selling {sym}: liked it less than at purchase, two sessions running.")
+        lines.append(f"Selling {short(sym)}: liked it less than at purchase, two sessions running.")
     order = result["order"]
     ranking = result["ranking"]
     if order:
         top, second = ranking[0], ranking[1] if len(ranking) > 1 else None
-        head = f"{board_size} on the table. {order['symbol']} smelled best at {order['verdict']:.3f}"
+        head = f"{board_size} on the table. {short(order['symbol'])} smelled best at {order['verdict']:.3f}"
         if second:
-            head += f", {second[0]} next at {second[1]:.3f}"
+            head += f", {short(second[0])} next at {second[1]:.3f}"
         head += f": {result['pick_cells']} Kenyon cells, {result['channels']} channels."
         spend = qty * price if qty and price else order["dollars"]
         if order["margin"] < 0.36:
@@ -182,6 +188,7 @@ def main() -> None:
     ap.add_argument("--fly", default="001")
     ap.add_argument("--go", action="store_true", help="place the order and post the thought")
     ap.add_argument("--register", action="store_true")
+    ap.add_argument("--record", action="store_true", help="dry run, but save the replay so the page can play it")
     ap.add_argument("--seed", type=int, default=None, help="board seed; default is the minute")
     args = ap.parse_args()
 
@@ -217,7 +224,7 @@ def main() -> None:
     if len(board) < 2:
         raise SystemExit(f"history came back thin: {list(board)}")
 
-    result = run_session(board, closed, dry_run=not args.go, fly_id=args.fly, when=when, account=account)
+    result = run_session(board, closed, dry_run=not args.go, fly_id=args.fly, when=when, account=account, record=args.record)
     order = result["order"]
     qty = price = None
     if order:
@@ -239,8 +246,13 @@ def main() -> None:
     else:
         print("order:   none")
     print(f"thought ({len(text)} chars):\n  {text}")
+    if result["replay"]:
+        # The words belong with the session, so the page can show what was posted.
+        path = Path(result["replay"]); saved = json.loads(path.read_text())
+        saved["events"].append({"step": len(saved["events"]), "type": "thought", "body": text, "qty": qty, "price": price})
+        path.write_text(json.dumps(saved, indent=1))
     if not args.go:
-        print("\ndry run. Nothing sent, nothing saved.")
+        print("\ndry run. Nothing sent, nothing learned." + (f" Replay saved: {result['replay']}" if result["replay"] else ""))
         return
 
     for sym in result["sold"]:

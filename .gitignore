@@ -21,3 +21,7 @@ data/weight_csr.pkl
 data/malecns/
 data/results/
 .venv/
+
+# fly scheduler
+data/flies/*/run.log
+data/flies/*/last_slot.txt

@@ -19,6 +19,7 @@ import sys
 import time
 import uuid
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import quote
@@ -26,6 +27,9 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
+
+import brian2
+brian2.BrianLogger.log_level_error()   # its warnings print whole rate arrays and drown the run log
 
 from fly_agent import BOARD_SIZE, MAX_POSITIONS, compose_board, run_session, size
 from fly_memory import FLIES
@@ -123,6 +127,39 @@ def closed_positions(key: str, bot_id: str, fly_positions: list[dict]) -> dict[s
     return result
 
 
+# ---- is it time? -----------------------------------------------------------
+
+def slot(cadence: str, now: datetime) -> str | None:
+    """The session slot `now` falls in, or None when no session is due.
+
+    A daily fly decides at 15:30 New York time on weekdays, when the day's bar
+    is nearly whole and an order still fills. An "Nh" fly decides at the top of
+    every Nth hour UTC. The scheduler calls every half hour; the slot name is
+    what stops a second run in the same window.
+    """
+    if cadence.endswith("h"):
+        every = int(cadence[:-1])
+        utc = now.astimezone(timezone.utc)
+        return utc.strftime("%Y-%m-%dT%H") if utc.hour % every == 0 and utc.minute < 30 else None
+    ny = now.astimezone(ZoneInfo("America/New_York"))
+    return ny.strftime("%Y-%m-%d") if ny.weekday() < 5 and ny.hour == 15 and ny.minute >= 30 else None
+
+
+def due(fly_id: str, row: dict, now: datetime) -> tuple[bool, str]:
+    """Whether to run now, and why not when the answer is no."""
+    this = slot(row["cadence"], now)
+    if this is None:
+        return False, "not a session time"
+    marker = FLIES / fly_id / "last_slot.txt"
+    if marker.exists() and marker.read_text().strip() == this:
+        return False, f"slot {this} already ran"
+    if row["universe"] == "stocks":
+        status = api(None, "GET", "/market-status")
+        if not (status.get("is_open") or status.get("isOpen") or status.get("open")):
+            return False, "stock market is closed"
+    return True, this
+
+
 # ---- words -------------------------------------------------------------------
 
 def short(symbol: str) -> str:
@@ -213,6 +250,7 @@ def main() -> None:
     ap.add_argument("--go", action="store_true", help="place the order and post the thought")
     ap.add_argument("--register", action="store_true")
     ap.add_argument("--record", action="store_true", help="dry run, but save the replay so the page can play it")
+    ap.add_argument("--if-due", action="store_true", help="exit quietly unless a session is due for this fly right now")
     ap.add_argument("--seed", type=int, default=None, help="board seed; default is the minute")
     args = ap.parse_args()
 
@@ -222,6 +260,14 @@ def main() -> None:
     row = m[args.fly]
     if args.register:
         register(args.fly, m); return
+
+    if args.if_due:
+        ok, why = due(args.fly, row, datetime.now(timezone.utc))
+        if not ok:
+            print(f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC fly {args.fly}: skipped, {why}")
+            return
+        (FLIES / args.fly).mkdir(parents=True, exist_ok=True)
+        (FLIES / args.fly / "last_slot.txt").write_text(why)
 
     key = keychain(row["keychain"]) or keychain(DATA_KEYCHAIN)
     if not key:

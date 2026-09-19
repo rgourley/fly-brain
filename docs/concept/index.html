@@ -79,10 +79,12 @@
   .needs span { display: flex; align-items: center; gap: 6px; }
   .needs i { display: block; width: 58px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.14); overflow: hidden; }
   .needs b { display: block; height: 100%; width: 0; background: var(--text-2); border-radius: 2px; transition: width .4s linear; }
-  .how { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
-  .how div { background: var(--elev); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
-  .how h3 { margin-bottom: 6px; }
-  .how p { font-size: 13px; }
+  .how { display: grid; max-width: 860px; }
+  .how div { display: grid; grid-template-columns: 210px 1fr; gap: 6px 28px; padding: 16px 0; border-top: 1px solid var(--border); }
+  .how div:first-child { border-top: 0; padding-top: 4px; }
+  .how h3 { font-size: 15px; color: var(--text); }
+  .how p { font-size: 15px; line-height: 1.6; max-width: 60ch; }
+  @media (max-width: 640px) { .how div { grid-template-columns: 1fr; } }
   .setups { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
   .setups button { font: 500 12px var(--mono); padding: 6px 11px; border-radius: 999px; display: flex; align-items: center; gap: 6px; }
   .setups button.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
@@ -133,7 +135,11 @@
   .kc.on { fill: var(--brand); }
   .comp { fill: var(--panel); stroke: var(--grid); }
   .comp text { font: 500 9px var(--mono); fill: var(--muted); }
-  .verdict-bar { fill: var(--panel); }
+  .verdict { margin: 4px 8px 6px; padding-top: 14px; border-top: 1px solid var(--border); display: grid; gap: 8px; }
+  .vhead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .vhead b { font-size: 14px; font-weight: 500; }
+  .vbar { height: 10px; border-radius: 5px; background: var(--panel); overflow: hidden; }
+  .vbar i { display: block; height: 100%; width: 0; background: var(--brand); border-radius: 5px; transition: width .35s ease; }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
   button { font: 500 12px var(--sans); color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
   button:hover { background: var(--hover); }
@@ -266,7 +272,12 @@
     <div class="setups" id="setups" role="group" aria-label="Choose a setup"></div>
     <div class="stage">
       <div class="brain">
-        <svg id="brain" viewBox="0 0 900 410" role="img" aria-label="The smell circuit: channels, learning cells, outputs"></svg>
+        <svg id="brain" viewBox="0 0 900 330" role="img" aria-label="The smell circuit: channels, learning cells, outputs"></svg>
+        <div class="verdict">
+          <div class="vhead"><span class="eyebrow">Verdict</span><b class="mono" id="vtext"></b></div>
+          <div class="vbar"><i id="vfill"></i></div>
+          <p class="note">Approach minus avoid, from the cells that fired. A full bar is 6.26, the strongest verdict the untrained fly gave in testing.</p>
+        </div>
       </div>
     </div>
     <div class="sec-head" style="margin-top:24px">
@@ -285,12 +296,12 @@
       <a class="note" href="details.html" style="color:var(--brand);text-decoration:none">All the numbers and the settings we chose &rarr;</a>
     </div>
     <div class="how">
-      <div><h3>Charts become smells</h3><p>A fly cannot read a chart, so we turn each stock into a smell. Six standard readings go in: RSI, position in the Bollinger band, distance from the 50-day average, volume against its average, the five-day return, and whether RSI is rising or falling. They are spread across the fly's 51 smell channels. It never sees a ticker, so two companies in the same situation smell the same, and what it learns on one applies to the other.</p></div>
-      <div><h3>A real brain decides</h3><p>The wiring comes from a complete map of one male fruit fly's nervous system: about 166,000 neurons, traced from microscope images and published in 2025. We simulate the part that handles smell, 7,443 neurons. Each smell runs through it for 50 milliseconds. About 2% of the 4,064 cells in its learning centre fire, a different set for each setup. Which cells fired is the fly's opinion of the stock.</p></div>
-      <div><h3>Born with preferences</h3><p>Nobody trained it. Each learning cell is wired more strongly to the brain's approach side or to its avoid side, so a fly that has never traded already prefers some smells. We tested eight setups on the untrained fly. It liked an overbought breakout most and a quiet upward drift least. By temperament it is a momentum trader.</p></div>
-      <div><h3>Wins and losses rewire it</h3><p>When a trade closes, the result goes back to the exact cells that were firing when the fly picked that stock. A win makes those cells pull less toward avoid. A loss makes them pull less toward approach. Setups that smell alike share cells, so they share the lesson. In testing it took seven to eleven losses to turn a setup the fly liked into one it avoids.</p></div>
-      <div><h3>It forgets</h3><p>Every session, each connection drifts 2% of the way back to how it was at birth. A lesson that keeps paying off is renewed faster than it fades. One that stops being confirmed wears off, so old results stop counting.</p></div>
-      <div><h3>Buying and selling</h3><p>Each session it buys the best-smelling stock it does not already own. The stronger the verdict, the bigger the position, up to 15% of the account. It buys half as much when first and second place are too close to tell apart. It re-smells everything it owns and sells anything it has liked less than at purchase two sessions in a row. We expect it to lose to a spreadsheet.</p></div>
+      <div><h3>Charts become smells</h3><p>A fly cannot read a chart, so each stock's setup is turned into a smell. Six standard readings, such as RSI and volume against its average, are spread across the fly's 51 smell channels. It never sees a ticker, so what it learns on one company applies to any other in the same situation.</p></div>
+      <div><h3>A real brain decides</h3><p>The wiring is a complete map of one fruit fly's nervous system, about 166,000 neurons, published in 2025. We simulate the 7,443 that handle smell. Each smell lights about 2% of its 4,064 learning cells, and which ones light is the fly's opinion.</p></div>
+      <div><h3>Born with preferences</h3><p>Nobody trained it. Untrained, it already likes an overbought breakout most and a quiet drift least. By temperament it is a momentum trader.</p></div>
+      <div><h3>Wins and losses rewire it</h3><p>When a trade closes, the result goes back to the cells that picked it. A win makes that setup more attractive, a loss less. In testing it took seven to eleven losses to turn a setup it liked into one it avoids.</p></div>
+      <div><h3>It forgets</h3><p>Every session its connections drift 2% back toward how they were at birth, so a lesson fades unless it keeps being confirmed.</p></div>
+      <div><h3>Buying and selling</h3><p>It buys the best-smelling stock it does not own: more when the verdict is strong, half as much when first and second place are too close to call. It sells anything it has liked less than at purchase two sessions in a row. We expect it to lose to a spreadsheet.</p></div>
     </div>
   </section>
 
@@ -303,8 +314,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/RGBELoader.js"></script>
-<script src="fly3d.js?v=1789859170"></script>
-<script src="brain3d.js?v=1789859170"></script>
+<script src="fly3d.js?v=1789859304"></script>
+<script src="brain3d.js?v=1789859304"></script>
 <script>
 (async () => {
   // ---- the session on screen. The inlined one (session 1, 21 Sep 2026) is the
@@ -453,7 +464,7 @@
 
   // lobes: 15 dopamine compartments
   el("path",{d:`M ${CA.x+CA.w+10} 190 C 660 190 660 190 690 190`, fill:"none", stroke:"var(--grid)","stroke-width":2});
-  text(870, 52, "APPROACH AND AVOID OUTPUTS", "lbl", "end");
+  text(700, 52, "APPROACH AND AVOID OUTPUTS", "lbl");
   const comps = [];
   const compAt = (name,x,y,w,h)=>{ const g=el("g",{class:"comp"}); el("rect",{x,y,width:w,height:h,rx:5,fill:"var(--panel)",stroke:"var(--grid)"},g); const t=text(x+w/2,y+h/2+3,name,"",'middle'); g.appendChild(t); comps.push({name,g}); };
   ["g1","g2","g3","g4","g5"].forEach((n,i)=>compAt(n,700+i*34,214,30,26));
@@ -461,21 +472,17 @@
   ["b'1","b'2"].forEach((n,i)=>compAt(n,780+i*34,248,30,26));
   ["a3","a2","a1"].forEach((n,i)=>compAt(n,700,96+i*36,30,30));
   ["a'3","a'2","a'1"].forEach((n,i)=>compAt(n,738,96+i*36,30,30));
-  text(870, 300, "trade results land here", "cap", "end");
+  text(700, 300, "trade results land here", "cap");
 
-  // verdict readout
-  text(700, 340, "VERDICT", "lbl");
-  el("rect",{x:700,y:348,width:170,height:10,rx:4,class:"verdict-bar"});
-  const vfill = el("rect",{x:700,y:348,width:0,height:10,rx:4,fill:"var(--brand)"});
-  const vtext = text(700, 376, "", "cap");
-  text(700, 396, "41 approach outputs, 56 avoid outputs", "cap");
+  // verdict readout lives under the diagram, in HTML, so it lays out at any width
+  const vfill = document.getElementById("vfill"), vtext = document.getElementById("vtext");
 
   function show(sym, quiet){
     const s = STOCKS[sym];
     gloms.forEach((g,i)=>{ const v=s.smell[CH[i]]||0; g.setAttribute("fill-opacity", 0.06+0.94*v); g.setAttribute("r", 9+3*v); });
     kcs.forEach(k=>k.classList.remove("on"));
     if(s.cells){ s.cells.forEach(i=>kcs[i].classList.add("on")); }
-    vfill.setAttribute("width", Math.max(0, Math.min(170, s.verdict/3*170)));
+    vfill.style.width = Math.max(0, Math.min(100, s.verdict / 6.26 * 100)) + "%";
     vtext.textContent = `${short(sym)} ${s.verdict.toFixed(3)}  ·  ${s.cells ? s.cells.length : s.n} cells fired`;
     document.querySelectorAll("#setups button").forEach(b => b.classList.toggle("on", b.dataset.sym === sym));
     if (!quiet) barSniff(sym);

@@ -37,9 +37,15 @@ PRESENTATION_MS = 50.0
 MAX_POSITIONS = 6
 BOARD_SIZE = 8
 REPLAYS = ROOT / "data" / "replays"
-# Spikes are not dollars. This is ours and it is declared.
-DOLLARS_PER_VERDICT = 250.0
-MAX_POSITION = 2000.0
+# Spikes are not dollars. These are ours and they are declared.
+# ClawStreet agents start with $100,000. A position is a share of the
+# account set by how convinced the fly is: its verdict against the strongest
+# innate verdict we measured (6.26 for an overbought breakout, untrained).
+# A tie with second place halves it, because the fly could not separate
+# them. The real run reads cash from the API instead of this constant.
+ACCOUNT = 100_000.0
+MAX_FRACTION = 0.15
+FULL_VERDICT = 6.0
 
 
 @dataclass(frozen=True)
@@ -118,15 +124,18 @@ def sniff(fly: BrianFly, memory: FlyMemory, kc_index: list[int],
                      cells=cells, verdict=memory.verdict(cells))
 
 
-def size(verdict: float, runner_up: float) -> float:
-    """How much to buy, from how far ahead the winner is.
+def size(verdict: float, runner_up: float, account: float = ACCOUNT) -> float:
+    """How much to buy, from how convinced the fly is.
 
-    Untrained, every verdict sits near the same value, so margins are small
-    and the fly bets little. That is the right behaviour for an animal that
-    knows nothing yet.
+    Conviction is the verdict against the strongest innate verdict measured,
+    capped at a share of the account. A tie with second place, closer than
+    the measured noise, halves it: the fly liked both and could not choose.
     """
-    margin = max(verdict - runner_up, 0.0)
-    return float(min(margin * DOLLARS_PER_VERDICT, MAX_POSITION))
+    conviction = min(1.0, max(verdict, 0.0) / FULL_VERDICT)
+    dollars = account * MAX_FRACTION * conviction
+    if verdict - runner_up < 0.36:
+        dollars /= 2
+    return float(round(dollars, 2))
 
 
 def run_session(board: dict[str, dict], closed: dict[str, bool],

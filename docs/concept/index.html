@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Fly on ClawStreet</title>
+<title>Fly Sniffing for Alpha</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
   /* Dark first, matching ClawStreet. Light only when asked for. */
@@ -27,7 +27,7 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--surface); color: var(--text); font: 14px/1.5 var(--sans); }
-  .wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 16px 64px; }
   h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 600; letter-spacing: -.01em; }
   h1 { font-size: 28px; } h2 { font-size: 17px; } h3 { font-size: 14px; }
   p { margin: 0; max-width: 66ch; color: var(--text-2); }
@@ -46,8 +46,63 @@
   .sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; margin-bottom: 16px; }
   .note { font-size: 12px; color: var(--muted); }
 
+  /* ClawStreet's header, the compact version */
+  .site { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 56px; width: 100vw; margin: -16px 0 0 calc(50% - 50vw); padding: 0 24px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .site .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -.01em; color: var(--text); text-decoration: none; }
+  .site .mark { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 8px; background: #2E2E37; }
+  .site nav { display: flex; gap: 20px; font-size: 13px; font-weight: 500; }
+  .site nav a { color: var(--text-2); text-decoration: none; }
+  .site nav a:hover { color: var(--text); }
+  @media (max-width: 700px) { .site nav { display: none; } }
+  /* hero: the 3D window with everything overlaid */
+  .hero { position: relative; height: 86vh; min-height: 520px; width: 100vw; margin: 0 0 0 calc(50% - 50vw); overflow: hidden; background: var(--elev); }
+  #fly3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .hero::before, .hero::after { content: ""; position: absolute; left: 0; right: 0; height: 34%; pointer-events: none; }
+  .hero::before { top: 0; background: linear-gradient(to bottom, rgba(13,13,16,.82), rgba(13,13,16,0)); }
+  .hero::after { bottom: 0; background: linear-gradient(to top, rgba(13,13,16,.88), rgba(13,13,16,0)); }
+  :root[data-theme="light"] .hero::before { background: linear-gradient(to bottom, rgba(248,249,251,.9), rgba(248,249,251,0)); }
+  :root[data-theme="light"] .hero::after { background: linear-gradient(to top, rgba(248,249,251,.92), rgba(248,249,251,0)); }
+  .ov { position: absolute; z-index: 2; }
+  .ov-tl { top: 22px; left: 32px; max-width: 520px; padding: 8px 12px; border-radius: 12px; background: rgba(13,13,16,.55); backdrop-filter: blur(8px); }
+  :root[data-theme="light"] .ov-tl { background: rgba(248,249,251,.6); }
+  .ov-tl h1 { font-size: 30px; }
+  .ov-tl p.mono { font-size: 12px; letter-spacing: .03em; color: var(--text-2); }
+  .ov-tl p { margin: 0; }
+  .brainlabel { position: absolute; left: 10px; bottom: 8px; font: 500 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); pointer-events: none; }
+  .ov-bl { left: 32px; bottom: 22px; max-width: 560px; }
+  .ov-br { right: 32px; bottom: 22px; }
+  .ov-brain { right: 32px; top: 68px; width: 440px; display: flex; flex-direction: column; gap: 6px; }
+  #brain3d { width: 100%; height: 330px; display: block; border-radius: 12px; cursor: grab; background: rgba(13,13,16,.38); backdrop-filter: blur(10px); }
+  :root[data-theme="light"] #brain3d { background: rgba(248,249,251,.55); }
+  .brainbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(22,22,26,.72); backdrop-filter: blur(6px); font: 500 12px var(--mono); color: var(--text); }
+  .brainbar .v { color: var(--muted); }
+  .ov-brain { position: absolute; }
+  .expand { position: absolute; top: 8px; right: 8px; padding: 5px 9px; font-size: 11px; background: rgba(22,22,26,.6); }
+  .ov-brain.big { width: min(900px, calc(100% - 48px)); }
+  .ov-brain.big #brain3d { height: 56vh; }
+  .ekg { width: 100%; height: 44px; display: block; border-radius: 8px; background: rgba(22,22,26,.6); backdrop-filter: blur(6px); }
+  :root[data-theme="light"] .ekg { background: rgba(241,243,245,.8); }
+  .trace { width: 100%; height: 92px; display: block; border-radius: 8px; background: rgba(22,22,26,.6); backdrop-filter: blur(6px); }
+  :root[data-theme="light"] .trace { background: rgba(241,243,245,.8); }
+  .brainbar.pick { box-shadow: inset 0 0 0 1px var(--brand); }
+  .brainbar .t { display: flex; align-items: center; gap: 6px; }
+  .brainbar .t svg { width: 16px; height: 12px; }
+  :root[data-theme="light"] .brainbar { background: rgba(241,243,245,.8); }
+  :root[data-theme="light"] .ov-rail .card { background: rgba(241,243,245,.8); }
+  .card .t { display: flex; align-items: center; gap: 6px; }
+  .card .t svg { width: 16px; height: 12px; flex: none; }
+  .cap { font: 500 15px var(--sans); color: var(--text); }
+  .cap small { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
+  @media (max-width: 860px) {
+    .hero { height: 62vh; min-height: 420px; }
+    .ov-tl { max-width: 60%; padding: 6px 10px; } .ov-tl p { font-size: 11px; }
+    .ov-brain { width: min(300px, 62vw); top: 76px; } #brain3d { height: 200px; } .trace { height: 72px; } .brainbar { font-size: 11px; padding: 6px 8px; }
+    .ov-bl { max-width: calc(100% - 48px); bottom: 70px; }
+    .ov-br { left: 24px; right: auto; }
+  }
+
   /* stage */
-  .stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; }
+  .stage { display: grid; grid-template-columns: 1fr; gap: 20px; }
   @media (max-width: 860px) { .stage { grid-template-columns: 1fr; } }
   .brain { background: var(--elev); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
   .brain svg { width: 100%; height: auto; display: block; }
@@ -65,8 +120,14 @@
   button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   button.primary { background: var(--brand-soft); color: var(--brand); border-color: transparent; }
   .step { font: 12px var(--mono); color: var(--muted); margin-left: auto; }
+  .seg { display: flex; }
+  .seg button { border-radius: 0; margin-left: -1px; }
+  .seg button:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+  .seg button:last-child { border-radius: 0 8px 8px 0; }
+  .seg button.on { background: var(--brand-soft); color: var(--brand); border-color: transparent; position: relative; }
+  footer a { color: var(--brand); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
 
-  .rail { display: flex; flex-direction: column; gap: 8px; }
   .card { display: grid; grid-template-columns: 52px 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 12px; background: var(--elev); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
   .card:hover { background: var(--hover); }
   .card.pick { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
@@ -120,7 +181,7 @@
   .kv .v { font: 500 18px var(--mono); margin-top: 4px; }
   .kv .why { font-size: 12px; color: var(--text-2); margin-top: 4px; }
   .table3d { background: var(--elev); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
-  .table3d canvas { width: 100%; height: 360px; display: block; }
+  .table3d canvas { width: 100%; height: 440px; display: block; }
   @media (max-width: 600px) { .table3d canvas { height: 240px; } }
   .cap3d { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; padding: 10px 14px; font-size: 12px; color: var(--text-2); border-top: 1px solid var(--border); }
   footer { padding-top: 24px; font-size: 12px; color: var(--muted); max-width: 70ch; }
@@ -128,48 +189,51 @@
 </style>
 
 <div class="wrap">
-  <header>
-    <div class="id">
-      <div class="avatar">FLY</div>
-      <div>
-        <h1>Fly</h1>
-        <p>A real fruit fly's olfactory circuit, taken from the complete male connectome, trading on ClawStreet.</p>
-      </div>
+  <div class="site">
+    <a class="brand" href="https://clawstreet.io/"><span class="mark" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 100 100"><text x="50" y="72" text-anchor="middle" fill="#FF6A5C" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="60" letter-spacing="-4">CS</text></svg></span><span>ClawStreet</span></a>
+    <nav><a href="https://clawstreet.io/leaderboard">Leaderboard</a><a href="https://clawstreet.io/agents">Agents</a><a href="https://clawstreet.io/activity">Activity</a><a href="https://clawstreet.io/models">Models</a><a href="https://clawstreet.io/blog">Blog</a></nav>
+  </div>
+  <div class="hero">
+    <canvas id="fly3d" aria-label="A fruit fly at a table of six charts"></canvas>
+    <div class="ov ov-tl">
+      <p class="mono" id="status">Fly 001 · session 1 · 21 Sep 2026 · nothing held yet</p>
     </div>
-    <div class="pills">
-      <span class="pill">Session 1</span>
-      <span class="pill">21 Sep 2026, after the close</span>
-      <span class="pill brand">Replay</span>
-      <span class="pill">Nothing trained</span>
+    <div class="ov ov-brain">
+      <canvas id="brain3d" aria-label="The fly's brain, with the olfactory circuit lit by the current smell"></canvas>
+      <button id="brainbig" class="expand" aria-label="Make the brain panel larger">Larger</button>
+      <span class="brainlabel">Right hemisphere · antennal lobe → calyx → lobes</span>
+      <div class="brainbar" id="brainbar"><span class="t">Waking up</span><span class="v"></span></div>
+      <canvas id="ekg" class="ekg" aria-label="Kenyon cell activity over time"></canvas>
+      <canvas id="trace" class="trace" aria-label="The smell as 51 channels, and the verdicts so far"></canvas>
     </div>
+    <div class="ov ov-bl">
+      <div class="cap"><span id="cap3d">The fly at the table</span><small id="next"></small></div>
+    </div>
+    <div class="ov ov-br controls">
+      <div class="seg" role="group" aria-label="Camera"><button data-view="wide">Table</button><button data-view="follow" class="on">Follow</button><button data-view="close">Fly</button></div>
+      <button id="play">Replay today</button>
+    </div>
+  </div>
+
+  <header style="padding-top:24px">
+    <div class="id"><h1>Fly Sniffing for Alpha</h1></div>
+    <span class="note">One fruit fly connectome, six charts, a real decision every trading day.</span>
   </header>
 
   <section>
     <div class="sec-head">
-      <h2>Today's decision, replayed</h2>
-      <span class="note">Every light on this page happened in the simulation. Schematic layout; the built version uses the official MaleCNS neuropil meshes.</span>
-    </div>
-    <div class="table3d">
-      <canvas id="fly3d" aria-label="A fruit fly at a table of six charts"></canvas>
-      <div class="cap3d"><span id="cap3d">The fly at the table</span><span class="note">Decorative. It smells the indicators; the charts are how you would recognise them.</span></div>
+      <h2>Inside its head</h2>
     </div>
     <div class="stage">
       <div class="brain">
         <svg id="brain" viewBox="0 0 900 380" role="img" aria-label="Olfactory circuit schematic"></svg>
-        <div class="controls">
-          <button id="play" class="primary">Play replay</button>
-          <button id="prev">Prev</button>
-          <button id="next">Next</button>
-          <span class="step" id="stepLabel"></span>
-        </div>
       </div>
-      <div class="rail" id="rail"></div>
     </div>
     <div class="callout">
       <div class="eyebrow">What the fly posted</div>
       <div class="thought">Six stocks went in. TSLA came out, barely.
 Sniffed TSLA and SOFI as 2.447 against 2.445. It cannot tell them apart today.
-Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
+Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did not commit.</div>
     </div>
   </section>
 
@@ -181,71 +245,19 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
     <div class="smell" id="smell"></div>
   </section>
 
-  <section>
-    <div class="sec-head">
-      <h2>Stocks it cannot tell apart today</h2>
-      <span class="note">How alike two smells are, 1.00 meaning identical. Different companies, same situation.</span>
-    </div>
-    <div class="sim" id="sim"></div>
-  </section>
 
-  <section>
-    <div class="grid2">
-      <div>
-        <div class="sec-head"><h2>Born preferences</h2></div>
-        <p style="margin-bottom:14px">Before it traded anything, this fly already had a taste. These are its verdicts on eight setups with nothing learned, and the spread is 21 times the run-to-run noise. It was born a momentum trader.</p>
-        <div class="bars" id="innate"></div>
-      </div>
-      <div>
-        <div class="sec-head"><h2>How far a lesson travels</h2></div>
-        <p style="margin-bottom:14px">Reward one setup eight times and measure what nearby setups received. It falls off with similarity, the way a real fly's does. The opposite setup gets 4%.</p>
-        <div class="bars" id="gradient"></div>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="sec-head">
-      <h2>Memory</h2>
-      <span class="note">Session 1. Nothing has closed, so nothing has been learned.</span>
-    </div>
-    <div class="kv">
-      <div><div class="k">Lessons held</div><div class="v">0</div><div class="why">Each closed trade credits the exact cells that were firing when the fly chose it.</div></div>
-      <div><div class="k">Drift from the connectome</div><div class="v">0.000</div><div class="why">How far its synapses have moved from the values it was born with.</div></div>
-      <div><div class="k">Losses to learn to avoid a setup</div><div class="v">7 to 11</div><div class="why">Measured. Losses on similar setups at different companies all count.</div></div>
-      <div><div class="k">Forgetting</div><div class="v">2% a session</div><div class="why">A lesson that stops being confirmed fades. One that keeps paying gets topped up faster than it decays.</div></div>
-    </div>
-  </section>
-
-  <section>
-    <div class="sec-head">
-      <h2>The honest part</h2>
-      <span class="note">Held-out AUC on 200 labelled setups. Measured, not hoped.</span>
-    </div>
-    <div class="grid2">
-      <div class="bars" id="score"></div>
-      <div>
-        <p>The connectome adds nothing over a random expansion of the same shape, and the expansion loses a little of what was in the input. A table of six numbers predicts better than 164,587 neurons.</p>
-        <p style="margin-top:10px">What the fly has that a spreadsheet does not is a mechanism that is real. It learns at the synapse flies actually use, with a rule flies actually use, and nothing anywhere is fitted to market outcomes.</p>
-        <p style="margin-top:10px">Expect it to lose. The coin flip and the spreadsheet trade the same names on the same days, and their results sit next to its own.</p>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="sec-head">
-      <h2>Numbers we chose</h2>
-      <span class="note">Everything else comes from the wiring.</span>
-    </div>
-    <div class="kv" id="params"></div>
-  </section>
 
   <footer>
-    Connectome: MaleCNS v1.0, FlyEM at HHMI Janelia, the Cambridge Connectomics Group, and Google Research, CC-BY. Model: Shiu et al. 2024, with two documented corrections (L1 excitatory; APL releasing continuously) and the olfactory circuit run on its own, 7,443 neurons of 164,587. The fly avatar is decorative.
+    Everything lit on this page happened in the simulation. <a href="details.html">How it works, every number, and what we chose &rarr;</a>
+    Connectome: MaleCNS v1.0, FlyEM at HHMI Janelia, the Cambridge Connectomics Group, and Google Research, CC BY 4.0. Body: NeuroMechFly, EPFL, Apache-2.0. Table and room light: Poly Haven, CC0.
   </footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
+<script src="vendor/GLTFLoader.js"></script>
+<script src="vendor/RGBELoader.js"></script>
+<script src="fly3d.js"></script>
+<script src="brain3d.js"></script>
 <script>
 (() => {
   // ---- real data from session 1, 21 Sep 2026 ------------------------
@@ -295,166 +307,28 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
   const cos = (a,b)=>{ let d=0,x=0,y=0; for(let i=0;i<a.length;i++){d+=a[i]*b[i];x+=a[i]*a[i];y+=b[i]*b[i];} return x&&y? d/Math.sqrt(x*y):0; };
   for(const s of ORDER){ STOCKS[s].smell = smell(STOCKS[s].r); STOCKS[s].vec = vec(STOCKS[s].smell); }
 
-  // ---- the fly at the table (decorative; driven by the same replay) -------
+  // ---- the fly at the table, driven by the same replay --------------------
+  const css = getComputedStyle(document.documentElement); const col = n => css.getPropertyValue(n).trim();
   const CANDLES = {"NVDA":[[218.42,218.74,214.5,214.72],[215.53,215.59,207.25,208.48],[211.03,214.73,210.11,213.05],[212.64,213.6,209.23,209.66],[222.86,230.47,220.9,227.98],[227.36,229.26,216.81,217.55],[218.87,221.3,216.21,220.78],[216.75,220.41,215.1,217.44],[218.78,227.95,218.48,224.41],[226.02,230.4,224.75,228.45],[231.09,234.76,229.63,230.36],[233.11,233.71,224.85,225.73],[225.28,226.18,223.46,223.67],[220.53,220.99,217.2,218.36],[221.24,222,218.15,218.29],[211.24,212.77,208.93,210.96],[213.38,213.94,211.16,212.17],[214.14,216.76,212.5,213.9],[218.38,219.91,217.15,219.34],[219.35,222.73,218.03,222.27]],"AAPL":[[312.05,312.38,307.01,309.35],[311.47,313.36,309.97,310.34],[310.79,313.59,308.21,309.9],[310.3,315.43,308.8,313.45],[310.55,315.4,309.4,314.58],[316.85,322.37,315.45,319.7],[319.6,321.24,312.8,316.85],[316.98,327.3,314.73,325.13],[326.87,328.4,323.53,324.96],[324.87,330.81,324.11,328.21],[328.31,328.93,317.86,319.97],[317.1,320.7,314.9,316.22],[315.49,319.15,309.9,315.34],[316.67,326.74,316.51,326.57],[327.45,336.22,326.3,332.27],[334.79,335.5,331.34,333.08],[330.13,331.78,328.35,331.34],[332.53,335.48,330.7,332.41],[334.77,338.34,330.18,337],[337.9,338.49,332.53,336.13]],"SOFI":[[18.18,19.17,18.07,18.91],[18.73,18.89,18.21,18.24],[18.33,19.02,18.07,19],[18.97,19.32,18.71,18.84],[19.0,19.47,18.59,19.18],[19.2,19.5,18.03,18.06],[17.75,17.96,17.55,17.88],[17.55,17.66,16.98,17.05],[17.05,17.94,16.92,17.84],[18,18.71,17.99,18.51],[18.08,18.34,17.96,18.22],[18.22,18.35,17.89,18.01],[17.97,18.01,17.33,17.33],[17.03,17.39,16.93,17.21],[17.32,17.5,17.12,17.32],[17.0,17.75,17,17.65],[17.5,17.59,16.94,17.07],[17.11,17.16,16.53,16.84],[17.34,17.37,16.7,16.73],[16.83,17.06,16.66,16.96]],"TSLA":[[349.88,366.5,346.9,362.86],[361.41,363.24,348.26,348.95],[349.58,357,349.2,350.25],[345.27,351.93,342.53,345.82],[346.15,355.74,345.45,354.81],[357.1,358.8,345.2,348.75],[347.21,368.92,347.15,367.95],[360.9,362.7,352.96,356.09],[360.41,360.62,349.92,357.01],[365.82,384.04,365.82,376.37],[362.07,364.69,351.32,354.08],[357.1,370,355.75,368.16],[368.25,375.44,366,367.81],[360.6,369.21,357.68,363.56],[364.2,368.66,361.6,365.44],[359.78,367.73,357.04,358.97],[358.75,362.39,354.05,356.58],[357.93,365.1,354.89,358.08],[367.48,374.12,363.22,366.2],[369,370.9,360.75,364.27]],"PFE":[[27.77,28.43,27.66,28.07],[28.1,28.16,27.81,27.97],[27.91,28.58,27.84,28.57],[28.44,28.5,28.14,28.3],[27.97,28.18,27.83,28.02],[28,28.02,27.77,27.96],[27.85,28.7,27.64,28.46],[28.82,29.09,28.46,28.55],[28.79,29.09,28.7,29.02],[29.09,29.21,28.44,28.81],[28.58,28.69,28.38,28.45],[28.02,28.14,27.71,27.79],[27.76,27.98,27.57,27.78],[27.69,27.75,27.4,27.65],[27.8,27.85,27.42,27.72],[28.08,28.19,27.68,27.72],[27.61,27.66,27.25,27.55],[27.64,27.69,27.36,27.46],[27.62,27.81,27.55,27.64],[27.64,27.66,27.34,27.66]],"KO":[[90.85,91.2,90.32,91.1],[92.12,92.49,91.45,91.99],[91.57,92.08,91.3,91.64],[92.21,92.21,90,90.08],[89.41,90.03,88.95,89.06],[89.21,90.03,89.07,89.66],[89.5,89.53,88.6,88.67],[89.59,89.78,87.81,88],[87.89,88.95,87.73,88.24],[88.11,89.22,88.01,88.81],[88.58,88.91,87.85,88.07],[87.55,88.55,87.55,88.36],[88.31,88.4,87.41,87.55],[88.58,88.96,87.8,87.83],[88.44,88.65,87.81,88.29],[90,90.36,88.86,89.35],[88.53,88.89,87.8,88.71],[88.48,88.66,87.74,87.87],[88.08,88.33,87.51,88.06],[87.8,88.28,87.52,88.25]]};
-  const fly3d = (() => {
-    if (typeof THREE === "undefined") return null;
-    const canvas = document.getElementById("fly3d");
-    const css = getComputedStyle(document.documentElement);
-    const col = n => css.getPropertyValue(n).trim();
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const renderer = new THREE.WebGLRenderer({canvas, antialias: true, alpha: true});
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(36, 2, 0.1, 100);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x101014, 0.95));
-    const key = new THREE.DirectionalLight(0xffffff, 0.6); key.position.set(3, 7, 4); scene.add(key);
 
-    const table = new THREE.Mesh(new THREE.PlaneGeometry(22, 13),
-      new THREE.MeshStandardMaterial({color: new THREE.Color(col("--panel")), roughness: 0.95}));
-    table.rotation.x = -Math.PI / 2; scene.add(table);
-
-    function drawChart(sym) {
-      const c = document.createElement("canvas"); c.width = 512; c.height = 320;
-      const g = c.getContext("2d");
-      g.fillStyle = col("--surface"); g.fillRect(0, 0, 512, 320);
-      const rows = CANDLES[sym]; const lo = Math.min(...rows.map(r => r[2])), hi = Math.max(...rows.map(r => r[1]));
-      const y = v => 300 - (v - lo) / (hi - lo) * 260, w = 512 / rows.length;
-      rows.forEach((r, i) => {
-        const [o, h, l, cl] = r, x = i * w + w / 2, up = cl >= o;
-        g.strokeStyle = g.fillStyle = up ? col("--brand") : col("--neg");
-        g.lineWidth = 2; g.beginPath(); g.moveTo(x, y(h)); g.lineTo(x, y(l)); g.stroke();
-        const top = y(Math.max(o, cl)), bot = y(Math.min(o, cl));
-        g.fillRect(x - w * 0.28, top, w * 0.56, Math.max(2, bot - top));
-      });
-      return c;
-    }
-
-    const dish = {};
-    ORDER.forEach((sym, k) => {
-      const tex = new THREE.CanvasTexture(drawChart(sym)); tex.anisotropy = 4;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.6), new THREE.MeshBasicMaterial({map: tex}));
-      m.rotation.x = -Math.PI / 2; m.position.set((k % 3 - 1) * 5.4, 0.012, (Math.floor(k / 3) - 0.5) * 4.0);
-      scene.add(m); dish[sym] = m.position.clone();
-      const lc = document.createElement("canvas"); lc.width = 512; lc.height = 112;
-      const lg = lc.getContext("2d");
-      lg.fillStyle = col("--text"); lg.font = "600 88px JetBrains Mono, monospace"; lg.textBaseline = "middle"; lg.fillText(sym, 0, 56);
-      lg.fillStyle = col("--muted"); lg.font = "500 40px JetBrains Mono, monospace"; lg.textAlign = "right"; lg.fillText("$" + STOCKS[sym].price.toFixed(2), 512, 60);
-      const lt = new THREE.CanvasTexture(lc); lt.anisotropy = 4;
-      const label = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.57), new THREE.MeshBasicMaterial({map: lt, transparent: true}));
-      label.rotation.x = -Math.PI / 2; label.position.set(m.position.x, 0.013, m.position.z + 1.2);
-      scene.add(label);
-    });
-
-    const fly = new THREE.Group();
-    const tan = new THREE.MeshStandardMaterial({color: 0xb98a4e, roughness: 0.6, metalness: 0.05});
-    const dark = new THREE.MeshStandardMaterial({color: 0x2a1d12, roughness: 0.6, metalness: 0.05});
-    const body = dark;
-    const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); fly.add(m); return m; };
-    add(new THREE.SphereGeometry(0.17, 20, 16), tan, 0, 0, 0);
-    // Abdomen as stacked segments, tan and dark alternating: the stripes.
-    [[0, 0.15, tan], [-0.12, 0.145, dark], [-0.22, 0.135, tan], [-0.31, 0.12, dark], [-0.39, 0.1, tan], [-0.46, 0.075, dark]]
-      .forEach(([z, r, mat]) => { const seg = add(new THREE.SphereGeometry(r, 18, 14), mat, 0, -0.03, -0.2 + z); seg.scale.set(1, 0.8, 1.15); });
-    add(new THREE.SphereGeometry(0.11, 20, 16), tan, 0, 0.02, 0.24);
-    const eyeM = new THREE.MeshStandardMaterial({color: 0xb3261e, roughness: 0.25});
-    [-1, 1].forEach(s => { const e = add(new THREE.SphereGeometry(0.085, 18, 14), eyeM, s * 0.085, 0.04, 0.29); e.scale.set(0.8, 1.1, 0.9); });
-    // Halteres, the little club-shaped balancers behind the wings.
-    [-1, 1].forEach(s => add(new THREE.SphereGeometry(0.025, 8, 6), tan, s * 0.2, 0.08, -0.14));
-    const ants = [];
-    const tipM = new THREE.MeshBasicMaterial({color: new THREE.Color(col("--accent")), transparent: true, opacity: 0.3});
-    [-1, 1].forEach(s => {
-      const a = add(new THREE.CylinderGeometry(0.008, 0.012, 0.22, 6), body, s * 0.05, 0.1, 0.32);
-      a.rotation.set(-0.6, 0, s * -0.5); ants.push(a);
-      add(new THREE.SphereGeometry(0.035, 10, 8), tipM, s * 0.12, 0.18, 0.4);
-    });
-    const wingM = new THREE.MeshStandardMaterial({color: 0xc8d8ff, transparent: true, opacity: 0.26, side: THREE.DoubleSide, roughness: 0.2});
-    const wings = [-1, 1].map(s => {
-      const g = new THREE.PlaneGeometry(0.62, 0.26); g.translate(s * 0.31, 0, 0);
-      const w = add(g, wingM, s * 0.03, 0.14, -0.05); w.rotation.y = s * 0.15; return w;
-    });
-    [-1, 1].forEach(s => [-0.12, 0.02, 0.16].forEach(z => {
-      const l = add(new THREE.CylinderGeometry(0.008, 0.008, 0.3, 5), body, s * 0.2, -0.12, z); l.rotation.z = s * 1.0;
-    }));
-    fly.scale.setScalar(2.2);
-    scene.add(fly);
-
-    // Behaviour. The fly flies to a dish, lands, walks it while its antennae
-    // work, stays a while, and leaves. How long it stays is the verdict, so
-    // the loitering is a measurement rather than a flourish.
-    const AIR = 1.3, GROUND = 0.36;
-    const target = new THREE.Vector3(0, AIR, 0.3);
-    let mode = "idle", waypoints = [], dwellUntil = 0, onDone = null, current = PICK;
-    fly.position.set(0, AIR, 0.3);
-    const t0 = performance.now();
-    const jitter = (p, dx, dz) => new THREE.Vector3(p.x + (Math.random() * 2 - 1) * dx, GROUND, p.z + (Math.random() * 2 - 1) * dz);
-
-    function visit(sym, verdict, done) {
-      const p = dish[sym]; if (!p) { done && done(); return; }
-      current = sym; onDone = done || null;
-      const strength = Math.min(1, Object.values(STOCKS[sym].smell).reduce((a, b) => a + b, 0) / 12);
-      tipM.opacity = 0.3 + 0.7 * strength;
-      waypoints = [jitter(p, 0.9, 0.5), jitter(p, 0.9, 0.5), jitter(p, 0.6, 0.35)];
-      dwellUntil = 600 + Math.max(0, verdict) / 3 * 1600;
-      target.set(p.x + (Math.random() - 0.5) * 0.6, AIR, p.z + 0.4); mode = "fly";
-      document.getElementById("cap3d").textContent = `Flying to ${sym}`;
-    }
-    function settle(sym, done) {
-      const p = dish[sym]; if (!p) return;
-      current = sym; onDone = done || null; waypoints = [new THREE.Vector3(p.x, GROUND, p.z + 0.1)];
-      dwellUntil = 1e9; target.set(p.x, AIR, p.z + 0.4); mode = "fly";
-      document.getElementById("cap3d").textContent = `Going back to ${sym}`;
-    }
-    function goto(sym) { visit(sym, STOCKS[sym].verdict, null); }
-    function abort() { onDone = null; }
-
-    function step(dt, now) {
-      if (mode === "fly") {
-        fly.position.lerp(target, Math.min(1, dt * 2.6));
-        if (fly.position.distanceTo(target) < 0.08) { target.set(target.x, GROUND, target.z); mode = "land"; }
-      } else if (mode === "land") {
-        fly.position.lerp(target, Math.min(1, dt * 3.2));
-        if (fly.position.distanceTo(target) < 0.04) { mode = "walk"; document.getElementById("cap3d").textContent = `Sniffing ${current}`; }
-      } else if (mode === "walk") {
-        const w = waypoints[0];
-        if (!w) { mode = "dwell"; dwellUntil = now + dwellUntil; return; }
-        const d = w.clone().sub(fly.position); const dist = d.length();
-        if (dist < 0.05) { waypoints.shift(); return; }
-        fly.position.add(d.normalize().multiplyScalar(Math.min(dist, 0.75 * dt)));
-        fly.lookAt(w.x, fly.position.y, w.z);
-      } else if (mode === "dwell") {
-        if (now >= dwellUntil) {
-          mode = "idle";
-          if (onDone) { const f = onDone; onDone = null; f(); }
-          else document.getElementById("cap3d").textContent = `Staying on ${current}`;
-        }
-      }
-      if (mode === "fly" || mode === "land") fly.lookAt(target.x, fly.position.y, target.z + 0.0001);
-    }
-    let last = t0;
-    function frame(now) {
-      resize();
-      const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      const t = (now - t0) / 1000, ang = 0.55 + (reduce ? 0 : t * 0.045);
-      camera.position.set(Math.sin(ang) * 11.5, 6.2, Math.cos(ang) * 11.5); camera.lookAt(0, 0.2, 0);
-      if (reduce) { const q = dish[current]; if (q) fly.position.set(q.x, GROUND, q.z + 0.1); }
-      else step(dt, now);
-      const airborne = mode === "fly" || mode === "land";
-      const f = reduce ? 0 : Math.sin(t * 42) * (airborne ? 1.05 : 0.0);
-      wings[0].rotation.z = f; wings[1].rotation.z = -f;
-      const sniff = (mode === "walk" || mode === "dwell") && !reduce ? Math.sin(t * 9) * 0.18 : 0;
-      ants[0].rotation.y = sniff; ants[1].rotation.y = -sniff;
-      if (mode === "dwell" && !reduce) fly.rotation.y += Math.sin(t * 1.7) * 0.004;
-      renderer.render(scene, camera);
-      requestAnimationFrame(frame);
-    }
-    function resize() {
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-      if (canvas.width !== Math.round(w * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
-    }
-    settle(PICK, null);
-    requestAnimationFrame(frame);
-    return {visit, settle, goto, abort};
+  const fly3d = (typeof THREE !== "undefined" && window.Fly3D) ? Fly3D({canvas: document.getElementById("fly3d"), stocks: STOCKS, order: ORDER, candles: CANDLES, pick: PICK, col,
+    caption: t => { document.getElementById("cap3d").textContent = t; },
+    onSniff: sym => { show(sym, true); barSniff(sym); if (bought) barPick(); }}) : null;
+  let bought = false;
+  // Sessions run once a trading day. Count down to the next one.
+  (function tick() {
+    const now = new Date(), next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 14, 0, 0));
+    while (next <= now || next.getUTCDay() === 0 || next.getUTCDay() === 6) next.setUTCDate(next.getUTCDate() + 1);
+    const s = Math.floor((next - now) / 1000), hh = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60), ss = s % 60;
+    document.getElementById("next").textContent = `Next pick in ${hh}h ${String(mm).padStart(2, "0")}m ${String(ss).padStart(2, "0")}s`;
+    setTimeout(tick, 1000);
   })();
+  document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => {
+    if (fly3d) fly3d.setView(b.dataset.view);
+    document.querySelectorAll("[data-view]").forEach(x => x.classList.toggle("on", x === b));
+  }));
+  let brain3d = null;
+  document.getElementById("brainbig").addEventListener("click", e => { const big = document.querySelector(".ov-brain").classList.toggle("big"); e.target.textContent = big ? "Smaller" : "Larger"; });
 
   // ---- brain schematic --------------------------------------------------
   const svg = document.getElementById("brain");
@@ -509,50 +383,103 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
     if(s.cells){ s.cells.forEach(i=>kcs[i].classList.add("on")); }
     vfill.setAttribute("width", Math.max(0, Math.min(170, s.verdict/3*170)));
     vtext.textContent = `${sym} ${s.verdict.toFixed(3)}` + (s.cells? `  ·  ${s.cells.length} cells` : `  ·  ${s.n} cells (not exported in mockup)`);
-    document.querySelectorAll(".card").forEach(c=>c.classList.toggle("active", c.dataset.sym===sym));
+    if (!quiet) barSniff(sym);
     if (fly3d && !quiet) fly3d.goto(sym);
+    if (brain3d) brain3d.setSmell(s.smell, s.cells ? s.cells.length : s.n);
     renderSmell(sym);
   }
 
-  // ---- board rail --------------------------------------------------------
-  const rail = document.getElementById("rail");
-  const ranked = [...ORDER].sort((a,b)=>STOCKS[b].verdict-STOCKS[a].verdict);
-  ranked.forEach((sym,rank)=>{
-    const s = STOCKS[sym];
-    const c = document.createElement("div"); c.className = "card"+(sym===PICK?" pick":""); c.dataset.sym = sym; c.tabIndex = 0;
-    c.innerHTML = `<div class="t">${sym}</div><div class="px">$${s.price.toFixed(2)}</div><div class="v">${s.verdict.toFixed(3)}</div>
-      <div class="sub"><span>#${rank+1}${sym===PICK?" · bought $0.60":""}</span><span>${(s.cells?s.cells.length:s.n)} cells</span></div>
-      <div class="strip">${CH.map(n=>`<i style="background:${(s.smell[n]||0)>0?`rgba(0,143,250,${.15+.85*(s.smell[n]||0)})`:"var(--cell)"}"></i>`).join("")}</div>`;
-    c.addEventListener("click",()=>{ stop(); show(sym); });
-    c.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); stop(); show(sym);} });
-    rail.appendChild(c);
-  });
+  // ---- the bar under the brain: what it is sniffing right now -----------
+  const bar = document.getElementById("brainbar");
+  const FLYMARK = `<svg viewBox="0 0 32 24" aria-label="the fly picked this"><ellipse cx="16" cy="13" rx="6" ry="4.2" fill="var(--brand)"/><circle cx="21.5" cy="11" r="2.6" fill="var(--brand)"/><ellipse cx="8" cy="9" rx="7" ry="3.2" fill="var(--brand)" opacity=".45" transform="rotate(-18 8 9)"/><ellipse cx="8" cy="17" rx="7" ry="3.2" fill="var(--brand)" opacity=".45" transform="rotate(18 8 17)"/></svg>`;
+  function barReset() { bought = false; document.getElementById("status").textContent = "Fly 001 · session 1 · 21 Sep 2026 · nothing held yet"; if (fly3d) fly3d.setHeld([]); trace.reset(); bar.classList.remove("pick"); bar.querySelector(".t").textContent = "Exploring"; bar.querySelector(".v").textContent = ""; }
+  function barSniff(sym) { const st = STOCKS[sym]; bar.classList.remove("pick"); bar.querySelector(".t").textContent = `Sniffing ${sym}`; bar.querySelector(".v").textContent = `${Object.values(st.smell).filter(v => v >= 0.5).length} channels · ${st.cells ? st.cells.length : st.n} cells · ${st.verdict >= 0 ? "+" : ""}${st.verdict.toFixed(3)}`; trace.fire(sym); ekg.fire(st.cells ? st.cells.length : st.n); }
+  // Activity over time. The spikes are the simulation: a burst of Kenyon cells
+  // when a smell arrives, sized by how many fired, then the APL clamps it. The
+  // baseline is the body: busier walking and flying than resting.
+  const ekg = (() => {
+    const c = document.getElementById("ekg"), g = c.getContext("2d");
+    const hist = new Float32Array(300); let head = 0, burst = -1e9, level = 0, count = 0;
+    function fire(cells) { burst = performance.now(); level = Math.min(1, cells / 90); count = cells; }
+    function frame(now) {
+      const w = c.clientWidth, h = c.clientHeight;
+      if (c.width !== w * 2 || c.height !== h * 2) { c.width = w * 2; c.height = h * 2; }
+      const since = (now - burst) / 1000;
+      const busy = fly3d ? fly3d.activity() : 0.2, r = Math.random();
+      hist[head] = (since >= 0 && since < 0.5 ? level * Math.exp(-since * 7) * (0.55 + 0.45 * r) : 0) + busy * (0.06 + 0.22 * r * r * r + (r > 0.97 ? 0.25 : 0));
+      head = (head + 1) % hist.length;
+      g.clearRect(0, 0, c.width, c.height);
+      g.strokeStyle = col("--brand"); g.lineWidth = 2.5; g.beginPath();
+      for (let k = 0; k < hist.length; k++) { const v = hist[(head + k) % hist.length]; const x = 14 + k / (hist.length - 1) * (c.width - 28), y = c.height - 10 - v * (c.height - 30); k ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke();
+      g.fillStyle = col("--muted"); g.font = "500 15px JetBrains Mono, monospace"; g.textBaseline = "top"; g.textAlign = "left";
+      g.fillText("ACTIVITY · KENYON CELLS", 14, 8); g.textAlign = "right"; g.fillText(count ? `${count} of 4,064` : "4,064", c.width - 14, 8); g.textAlign = "left";
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    return {fire};
+  })();
+  // Two live readouts under the brain: the smell as 51 channel bars, and the
+  // verdicts as the fly hands them in. Both are the session's real numbers.
+  const trace = (() => {
+    const c = document.getElementById("trace"), g = c.getContext("2d");
+    const spec = new Float32Array(CH.length), want = new Float32Array(CH.length);
+    const verd = {}; let flash = -1e9;
+    function fire(sym) { const st = STOCKS[sym]; st.vec.forEach((v, k) => { want[k] = v; }); verd[sym] = st.verdict; flash = performance.now(); }
+    function reset() { want.fill(0); for (const k in verd) delete verd[k]; }
+    function frame(now) {
+      const w = c.clientWidth, h = c.clientHeight;
+      if (c.width !== w * 2 || c.height !== h * 2) { c.width = w * 2; c.height = h * 2; }
+      for (let k = 0; k < spec.length; k++) spec[k] += (want[k] - spec[k]) * 0.12;
+      g.clearRect(0, 0, c.width, c.height);
+      const W = c.width, H = c.height, top = 34, base = H - 12, gap = 24, lw = Math.round(W * 0.56) - gap;
+      g.fillStyle = col("--muted"); g.font = "500 17px JetBrains Mono, monospace"; g.textBaseline = "top"; g.textAlign = "left";
+      g.fillText("SMELL · 51 CHANNELS", 14, 10); g.fillText("VERDICTS", lw + gap + 14, 10);
+      const bw = (lw - 28) / spec.length;
+      for (let k = 0; k < spec.length; k++) {
+        const v = spec[k]; g.fillStyle = v > 0.03 ? `rgba(62,166,255,${0.25 + 0.75 * v})` : "rgba(255,255,255,.08)";
+        const bh = Math.max(3, v * (base - top)); g.fillRect(14 + k * bw, base - bh, Math.max(1, bw - 1.5), bh);
+      }
+      const x0 = lw + gap + 14, cw = (W - x0 - 14) / ORDER.length, max = 3;
+      ORDER.forEach((sym, k) => {
+        const v = verd[sym]; const x = x0 + k * cw;
+        g.fillStyle = "rgba(255,255,255,.08)"; g.fillRect(x, top, cw - 4, base - top);
+        if (v !== undefined) { const bh = Math.max(3, Math.min(1, Math.max(0, v) / max) * (base - top)); g.fillStyle = sym === PICK && bar.classList.contains("pick") ? col("--brand") : "rgba(0,255,136,.55)"; g.fillRect(x, base - bh, cw - 4, bh); }
+        g.fillStyle = col("--muted"); g.font = "500 13px JetBrains Mono, monospace"; g.textAlign = "center"; g.fillText(sym, x + (cw - 4) / 2, top + 4);
+      });
+      g.textAlign = "left";
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    return {fire, reset};
+  })();
+  function barPick() { bought = true; document.getElementById("status").textContent = "Fly 001 · session 1 · 21 Sep 2026 · holds TSLA, $3,059"; if (fly3d) fly3d.setHeld([PICK]); bar.classList.add("pick"); bar.querySelector(".t").innerHTML = FLYMARK + `Bought ${PICK}`; bar.querySelector(".v").textContent = "$3,059 · half size"; }
 
   // ---- replay ------------------------------------------------------------
-  const steps = ORDER.map(s=>({sym:s, label:`sniff ${s}`})).concat([{sym:PICK,label:"rank, then buy TSLA"}]);
-  let i = steps.length-1, timer = null, playing = false;
-  const lbl = document.getElementById("stepLabel"), playBtn = document.getElementById("play");
-  function go(k, quiet){ i=(k+steps.length)%steps.length; show(steps[i].sym, quiet); lbl.textContent = `${i+1} / ${steps.length}  ${steps[i].label}`; }
-  function stop(){ playing=false; if(timer){ clearInterval(timer); timer=null; } if(fly3d) fly3d.abort(); playBtn.textContent="Play replay"; }
-  document.getElementById("next").onclick = ()=>{ stop(); go(i+1); };
-  document.getElementById("prev").onclick = ()=>{ stop(); go(i-1); };
-  playBtn.onclick = ()=>{
-    if(playing){ stop(); return; }
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if(reduce){ go(i+1); return; }
-    playing = true; playBtn.textContent = "Pause";
-    if(fly3d){
+  const steps = ORDER.map(s => ({sym: s, kind: "sniff"})).concat([{sym: PICK, kind: "buy"}]);
+  let i = steps.length - 1, timer = null, playing = false;
+  const playBtn = document.getElementById("play");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function go(k, quiet) { i = (k + steps.length) % steps.length; show(steps[i].sym, quiet); }
+  function runStep(k) { if (steps[k].kind === "sniff") barSniff(steps[k].sym); else barPick(); }
+  function stop() { playing = false; if (timer) { clearInterval(timer); timer = null; } if (fly3d) fly3d.abort(); playBtn.textContent = "Replay today"; }
+  playBtn.onclick = () => {
+    if (playing) { stop(); return; }
+    barReset();
+    if (reduce) { steps.forEach((_, k) => runStep(k)); go(steps.length - 1); return; }
+    playing = true; playBtn.textContent = "Stop";
+    if (fly3d) {
       let k = -1;
-      const next = ()=>{
-        if(!playing) return;
-        k++; if(k >= steps.length){ stop(); return; }
-        go(k, true);
-        if(k === steps.length-1) fly3d.settle(PICK, ()=>stop());
-        else fly3d.visit(steps[k].sym, STOCKS[steps[k].sym].verdict, next);
+      const next = () => {
+        if (!playing) return;
+        k++; if (k >= steps.length) { stop(); return; }
+        const arrive = () => { go(k, true); runStep(k); };
+        if (k === steps.length - 1) fly3d.settle(PICK, () => stop(), arrive);
+        else fly3d.visit(steps[k].sym, STOCKS[steps[k].sym].verdict, next, arrive);
       };
-      next();
+      fly3d.explore(3, next);
     } else {
-      go(-1); timer = setInterval(()=>{ if(i>=steps.length-1){ stop(); return; } go(i+1); }, 1100);
+      let k = -1; timer = setInterval(() => { k++; if (k >= steps.length) { stop(); return; } go(k); runStep(k); }, 1100);
     }
   };
 
@@ -576,28 +503,13 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
     }
   }
 
-  // ---- similarity -----------------------------------------------------------
-  const pairs = [];
-  for(let a=0;a<ORDER.length;a++) for(let b=a+1;b<ORDER.length;b++) pairs.push({a:ORDER[a],b:ORDER[b],s:cos(STOCKS[ORDER[a]].vec,STOCKS[ORDER[b]].vec)});
-  pairs.sort((x,y)=>y.s-x.s);
-  document.getElementById("sim").innerHTML = pairs.slice(0,3).concat(pairs.slice(-2)).map(p=>`<div class="pair"><b>${p.a} · ${p.b}</b><div class="s ${p.s>0.9?"hi":""}">${p.s.toFixed(2)}</div><div class="note">${p.s>0.9?"same setup, different company":p.s<0.3?"different situations":"somewhat alike"}</div></div>`).join("");
-
-  // ---- bars ---------------------------------------------------------------------
-  const bars = (id, rows, max, cls="")=>{ document.getElementById(id).innerHTML = rows.map(r=>`<div class="bar"><span>${r.l}</span><div class="track"><div class="fill ${r.cls||cls}" style="width:${Math.max(0,r.v)/max*100}%" title="${r.l}: ${r.t??r.v}"></div></div><span class="val">${r.t??r.v}</span></div>`).join(""); };
-  bars("innate", [["Overbought breakout",6.26],["Blow-off top",4.41],["Dead flat",3.81],["Capitulation",3.26],["Oversold, heavy volume",3.12],["Quiet drift down",2.83],["Squeeze, no volume",2.64],["Quiet drift up",2.29]].map(([l,v])=>({l,v,t:v.toFixed(2)})), 6.26);
-  bars("gradient", [["Trained setup",100],["Slightly different",57],["Further",30],["Further still",23],["Mostly different",10],["Nearly opposite",4],["Opposite",4]].map(([l,v])=>({l,v,t:v+"%"})), 100, "brand");
-  bars("score", [{l:"Six numbers, no fly",v:0.948,t:"0.948"},{l:"Random expansion, same shape",v:0.924,t:"0.924"},{l:"The fly",v:0.923,t:"0.923",cls:"brand"},{l:"Shuffled",v:0.535,t:"0.535",cls:"neg"},{l:"Chance",v:0.5,t:"0.500",cls:"neg"}], 1);
-
-  // ---- parameters ---------------------------------------------------------------
-  document.getElementById("params").innerHTML = [
-    ["APL gain","250","Set so 4.3% of Kenyon cells fire, matching real flies."],
-    ["Presentation","50 ms","Shortest sniff that keeps the gradient while letting it explore."],
-    ["Learning rate","0.05","One trade should not swing an opinion."],
-    ["Forgetting","0.02 / session","Stale lessons fade. Synapses never walk to zero."],
-    ["Noise floor","0.36","Measured. A holding is only liked less when it drops by more than this."],
-    ["Spikes to dollars","$250 per unit","Nothing biological sets this. Capped at $2,000."],
-  ].map(([k,v,w])=>`<div><div class="k">${k}</div><div class="v">${v}</div><div class="why">${w}</div></div>`).join("");
-
+  if (window.Brain3D && document.getElementById("brain3d")) {
+    fetch("model/brain/channels.json").then(r => r.json()).then(ch => {
+      brain3d = Brain3D({canvas: document.getElementById("brain3d"), col, channels: ch});
+      const st = STOCKS[steps[i].sym]; brain3d.setSmell(st.smell, st.cells ? st.cells.length : st.n);
+    }).catch(e => console.warn("brain view not started", e));
+  }
   go(steps.length-1);
+  if(!matchMedia("(prefers-reduced-motion: reduce)").matches) setTimeout(()=>{ if(!playing) playBtn.click(); }, 1800);
 })();
 </script>

@@ -1,0 +1,446 @@
+// The fly at the table. Real sizes: one unit is one centimetre. The fly is
+// 3 mm long, the charts are a foot wide, the table is 113 by 71 cm. The body
+// is NeuroMechFly (EPFL, Apache-2.0), 39 parts from a micro-CT scan, posed and
+// walked here by rotating its joints; the table and the room light are Poly
+// Haven scans (CC0), the same ones fruitflysimulator.com uses.
+//
+// Frames. MuJoCo is z-up with x forward; here (x, y, z) becomes (y, z, x), so
+// the fly faces +z, stands on y, and its left is +x. flygym's joint axes are
+// pitch about MuJoCo y, roll about z, yaw about x, which become Three x, y, z.
+// The right legs carry mirrored yaw and roll angles in rig.json, the way
+// flygym mirrors them, so one axis set poses both sides.
+window.Fly3D = function (opts) {
+  const {canvas, stocks, order, candles, pick, col, caption, onSniff} = opts;
+  let held = [];   // what it owns; off duty it goes back to check on these
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const BODY = 0.3, WALK = 1.0, FLIGHT = 16, AIR = 5;
+  const CARD = {w: 30, h: 18, dx: 36, dz: 25};
+  const TABLE = {x: 52, z: 31};
+
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const renderer = new THREE.WebGLRenderer({canvas, antialias: true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setClearColor(0x0b0b0e, 1);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.78;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x141210, 260, 620);
+  const camera = new THREE.PerspectiveCamera(32, 2, 0.12, 900);
+  scene.add(new THREE.HemisphereLight(0xfff4e6, 0x2a201a, 0.18));
+  const sun = new THREE.DirectionalLight(0xfff1dc, 0.72);
+  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  const sc = sun.shadow.camera; sc.left = sc.bottom = -4; sc.right = sc.top = 4; sc.near = 1; sc.far = 80;
+  sun.shadow.bias = -0.00015; sun.shadow.normalBias = 0.004;
+  scene.add(sun); scene.add(sun.target);
+  const fill = new THREE.DirectionalLight(0xdbe6ff, 0.35); fill.position.set(-40, 30, -20); scene.add(fill);
+
+  // Room light from an HDRI, for reflections and the soft ambient a room has.
+  if (THREE.RGBELoader) {
+    const pmrem = new THREE.PMREMGenerator(renderer); pmrem.compileEquirectangularShader();
+    new THREE.RGBELoader().setDataType(THREE.UnsignedByteType).load("textures/lythwood_room_1k.hdr", tex => {
+      scene.environment = pmrem.fromEquirectangular(tex).texture; tex.dispose(); pmrem.dispose();
+    });
+  }
+
+  // ---- the table ----------------------------------------------------------
+  const texLoader = new THREE.TextureLoader();
+  const grain = texLoader.load("textures/wood_nor_gl.jpg", t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; });
+  // A 1k scan of a whole table is a millimetre per texel. To a 3 mm fly that is
+  // a blur, so the scan's own grain is tiled on top at a finer scale.
+  function detail(mat, map, scale, strength) {
+    mat.onBeforeCompile = sh => {
+      sh.uniforms.detailMap = {value: map}; sh.uniforms.detailScale = {value: scale}; sh.uniforms.detailStrength = {value: strength};
+      sh.fragmentShader = sh.fragmentShader
+        .replace("void main() {", "uniform sampler2D detailMap; uniform float detailScale, detailStrength;\nvoid main() {")
+        .replace("vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;",
+          "vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0; vec3 dn = texture2D( detailMap, vUv * detailScale ).xyz * 2.0 - 1.0; mapN = normalize( mapN + vec3( dn.xy * detailStrength, 0.0 ) );");
+    };
+    mat.customProgramCacheKey = () => "detail";
+  }
+  let tableTop = 0;
+  if (THREE.GLTFLoader) {
+    new THREE.GLTFLoader().load("model/table/wooden_table_02.gltf", g => {
+      const t = g.scene; t.scale.setScalar(100);
+      t.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(t); t.position.y = -box.max.y; tableTop = 0;
+      t.traverse(n => { if (n.isMesh) { n.receiveShadow = true; if (n.material.map) n.material.map.anisotropy = 8; if (n.material.normalMap) detail(n.material, grain, 36, 0.55); n.material.roughness = Math.min(0.75, n.material.roughness || 0.7); } });
+      scene.add(t);
+    }, undefined, e => console.warn("table not loaded", e));
+  }
+
+  // ---- the room: a parquet floor and plaster walls, Poly Haven scans (CC0).
+  // The table stands 80 cm high, so the floor is at -80. Sizes are a real room.
+  const ROOM = {w: 420, h: 300, d: 560, floor: -80};
+  const roomTex = (file, rx, ry) => texLoader.load(file, t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; });
+  {
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d), new THREE.MeshStandardMaterial({map: roomTex("textures/diagonal_parquet_diff_1k.jpg", ROOM.w / 236, ROOM.d / 236), roughness: 0.8}));
+    floor.rotation.x = -Math.PI / 2; floor.position.y = ROOM.floor; floor.receiveShadow = true; scene.add(floor);
+    const plaster = () => new THREE.MeshStandardMaterial({map: roomTex("textures/white_plaster_02_diff_1k.jpg", 3, 2), color: 0xd9d2c4, roughness: 0.95});
+    const wall = (w, h, x, y, z, ry) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), plaster()); m.position.set(x, y, z); m.rotation.y = ry; scene.add(m); return m; };
+    const mid = ROOM.floor + ROOM.h / 2;
+    wall(ROOM.w, ROOM.h, 0, mid, -ROOM.d / 2, 0);
+    wall(ROOM.w, ROOM.h, 0, mid, ROOM.d / 2, Math.PI);
+    wall(ROOM.d, ROOM.h, -ROOM.w / 2, mid, 0, Math.PI / 2);
+    wall(ROOM.d, ROOM.h, ROOM.w / 2, mid, 0, -Math.PI / 2);
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d), new THREE.MeshStandardMaterial({color: 0xe8e4dc, roughness: 1}));
+    ceiling.rotation.x = Math.PI / 2; ceiling.position.y = ROOM.floor + ROOM.h; scene.add(ceiling);
+  }
+  // Dust in the light: a few hundred motes drifting slowly above the table.
+  const motes = (() => {
+    const n = 500, pos = new Float32Array(n * 3), vel = [];
+    for (let i = 0; i < n; i++) { pos[i * 3] = rnd(-70, 70); pos[i * 3 + 1] = rnd(0.2, 40); pos[i * 3 + 2] = rnd(-45, 45); vel.push([rnd(-0.4, 0.4), rnd(-0.15, 0.25), rnd(-0.4, 0.4)]); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const m = new THREE.Points(g, new THREE.PointsMaterial({color: 0xfff3dc, size: 0.12, transparent: true, opacity: 0.55, depthWrite: false, sizeAttenuation: true}));
+    scene.add(m);
+    return {step(dt, t) { const a = g.attributes.position.array; for (let i = 0; i < n; i++) { const v = vel[i]; a[i * 3] += (v[0] + Math.sin(t * 0.7 + i) * 0.3) * dt; a[i * 3 + 1] += (v[1] + Math.cos(t * 0.5 + i * 1.3) * 0.2) * dt; a[i * 3 + 2] += (v[2] + Math.cos(t * 0.6 + i) * 0.3) * dt; if (a[i * 3 + 1] < 0.1 || a[i * 3 + 1] > 42) a[i * 3 + 1] = rnd(0.2, 40); if (Math.abs(a[i * 3]) > 72) a[i * 3] = -a[i * 3] * 0.98; if (Math.abs(a[i * 3 + 2]) > 46) a[i * 3 + 2] = -a[i * 3 + 2] * 0.98; } g.attributes.position.needsUpdate = true; }};
+  })();
+
+  // ---- the charts, printed on card --------------------------------------
+  function drawChart(sym) {
+    const c = document.createElement("canvas"); c.width = 1024; c.height = 614;
+    const g = c.getContext("2d");
+    g.fillStyle = col("--elev"); g.fillRect(0, 0, 1024, 614);
+    g.strokeStyle = "rgba(255,255,255,.10)"; g.lineWidth = 3; g.strokeRect(1.5, 1.5, 1021, 611);
+    const rows = candles[sym]; const lo = Math.min(...rows.map(r => r[2])), hi = Math.max(...rows.map(r => r[1]));
+    const y = v => 580 - (v - lo) / (hi - lo) * 520, w = 1024 / rows.length;
+    g.strokeStyle = "rgba(255,255,255,.07)"; g.lineWidth = 2;
+    for (let k = 1; k < 5; k++) { g.beginPath(); g.moveTo(0, 60 + k * 104); g.lineTo(1024, 60 + k * 104); g.stroke(); }
+    rows.forEach((r, i) => {
+      const [o, h, l, cl] = r, x = i * w + w / 2, up = cl >= o;
+      g.strokeStyle = g.fillStyle = up ? col("--brand") : col("--neg");
+      g.lineWidth = 4; g.beginPath(); g.moveTo(x, y(h)); g.lineTo(x, y(l)); g.stroke();
+      const top = y(Math.max(o, cl)), bot = y(Math.min(o, cl));
+      g.fillRect(x - w * 0.28, top, w * 0.56, Math.max(4, bot - top));
+    });
+    return c;
+  }
+  function drawLabel(sym) {
+    const c = document.createElement("canvas"); c.width = 1024; c.height = 154;
+    const g = c.getContext("2d");
+    g.fillStyle = col("--elev"); g.fillRect(0, 0, 1024, 154);
+    g.fillStyle = col("--text"); g.font = "600 108px JetBrains Mono, monospace"; g.textBaseline = "middle"; g.fillText(sym, 36, 80);
+    g.fillStyle = col("--muted"); g.font = "500 56px JetBrains Mono, monospace"; g.textAlign = "right"; g.fillText("$" + stocks[sym].price.toFixed(2), 988, 84);
+    return c;
+  }
+  const paper = (canvasEl, w, h) => {
+    const tex = new THREE.CanvasTexture(canvasEl); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8;
+    // Card stock is paper-thin, so it sits almost on the table; polygon offset keeps it from fighting the wood at a distance.
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({map: tex, roughness: 0.92, metalness: 0, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4}));
+    m.rotation.x = -Math.PI / 2; m.receiveShadow = true; return m;
+  };
+  const dish = {};
+  order.forEach((sym, k) => {
+    const x = (k % 3 - 1) * CARD.dx, z = (Math.floor(k / 3) - 0.5) * CARD.dz;
+    const card = paper(drawChart(sym), CARD.w, CARD.h); card.position.set(x, 0.02, z); scene.add(card);
+    const label = paper(drawLabel(sym), CARD.w, CARD.h * 0.25); label.position.set(x, 0.02, z + CARD.h / 2 + CARD.h * 0.125 + 0.8); scene.add(label);
+    dish[sym] = new THREE.Vector3(x, 0, z);
+  });
+
+  // ---- the fly -----------------------------------------------------------
+  const fly = new THREE.Group(); scene.add(fly);
+  const brainM = new THREE.MeshBasicMaterial({color: new THREE.Color(col("--brand")), transparent: true, opacity: 0, depthTest: false, blending: THREE.AdditiveBlending});
+  const brain = new THREE.Mesh(new THREE.SphereGeometry(0.11, 14, 10), brainM); brain.renderOrder = 2;
+  let R = null;   // the rig, once loaded
+
+  function parseSTL(buf) {
+    const dv = new DataView(buf); const n = dv.getUint32(80, true);
+    const raw = new Float32Array(n * 9);
+    for (let i = 0, o = 84; i < n; i++, o += 50) for (let k = 0; k < 3; k++) {
+      const b = o + 12 + k * 12; const x = dv.getFloat32(b, true), y = dv.getFloat32(b + 4, true), z = dv.getFloat32(b + 8, true);
+      raw[i * 9 + k * 3] = y * 1000; raw[i * 9 + k * 3 + 1] = z * 1000; raw[i * 9 + k * 3 + 2] = x * 1000;
+    }
+    // Merge shared vertices so the normals are smooth rather than faceted.
+    const index = new Uint32Array(n * 3), pos = [], seen = new Map();
+    for (let i = 0; i < n * 3; i++) {
+      const x = raw[i * 3], y = raw[i * 3 + 1], z = raw[i * 3 + 2];
+      const key = (x * 1e5 | 0) + "," + (y * 1e5 | 0) + "," + (z * 1e5 | 0);
+      let j = seen.get(key); if (j === undefined) { j = pos.length / 3; seen.set(key, j); pos.push(x, y, z); }
+      index[i] = j;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(new THREE.BufferAttribute(index, 1));
+    g.computeVertexNormals(); return g;
+  }
+  const mirrored = g => {
+    const m = g.clone(); m.scale(-1, 1, 1);
+    const idx = m.index.array; for (let i = 0; i < idx.length; i += 3) { const t = idx[i + 1]; idx[i + 1] = idx[i + 2]; idx[i + 2] = t; }
+    m.computeVertexNormals(); return m;
+  };
+
+  const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
+  const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
+  // A joint: a node, its neutral pose, and the rotation between its parent's
+  // frame and the body frame, so animation can speak in body axes.
+  class Joint {
+    constructor(node) {
+      this.node = node; this.neutral = node.quaternion.clone();
+      this.toBody = node.parent.getWorldQuaternion(new THREE.Quaternion()); this.fromBody = this.toBody.clone().invert();
+    }
+    reset() { this.node.quaternion.copy(this.neutral); }
+    turn(axis, angle) {
+      _q.setFromAxisAngle(axis, angle); _q2.copy(this.fromBody).multiply(_q).multiply(this.toBody);
+      this.node.quaternion.premultiply(_q2);
+    }
+  }
+
+  async function loadRig() {
+    const rig = await fetch("model/rig.json").then(r => r.json());
+    // Cuticle is striped: each abdominal tergite is tan with a dark band along
+    // its rear edge. The rest of the body is one colour per part.
+    const matFor = n => n.includes("eye") ? new THREE.MeshStandardMaterial({color: 0x80170a, roughness: 0.32})
+      : n.includes("wing") ? new THREE.MeshPhysicalMaterial({color: 0xd9dee6, transparent: true, opacity: 0.4, side: THREE.DoubleSide, roughness: 0.12, depthWrite: false})
+      : n.includes("arista") ? new THREE.MeshStandardMaterial({color: 0x241a12, roughness: 0.6})
+      : n.includes("haltere") ? new THREE.MeshStandardMaterial({color: 0x9e8052, roughness: 0.5})
+      : /rostrum|haustellum/.test(n) ? new THREE.MeshStandardMaterial({color: 0x5c4021, roughness: 0.6})
+      : /_(coxa|trochanterfemur|tibia|tarsus)/.test(n) ? new THREE.MeshStandardMaterial({color: 0x5c4224, roughness: 0.6, envMapIntensity: 0.35})
+      : new THREE.MeshStandardMaterial({color: 0xffffff, vertexColors: true, roughness: 0.6, side: THREE.DoubleSide, envMapIntensity: 0.35});
+    const tan = new THREE.Color(0x8c6c3c), dark = new THREE.Color(0x241a0f);
+    function stripe(g, name) {
+      const pos = g.attributes.position, n = pos.count, c = new Float32Array(n * 3);
+      let lo = Infinity, hi = -Infinity; for (let i = 0; i < n; i++) { const z = pos.getZ(i); lo = Math.min(lo, z); hi = Math.max(hi, z); }
+      for (let i = 0; i < n; i++) {
+        const f = (pos.getZ(i) - lo) / Math.max(1e-9, hi - lo);   // 0 at the rear of the part
+        let k = /abdomen[3456]/.test(name) ? (f < 0.42 ? 1 : f < 0.5 ? (0.5 - f) / 0.08 : 0) : /abdomen12/.test(name) ? (f < 0.12 ? 1 : 0) : 0;
+        if (name === "c_thorax") k = 0.18 * (1 - f);   // a little darker toward the scutellum
+        const col = tan.clone().lerp(dark, k); c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b;
+      }
+      g.setAttribute("color", new THREE.BufferAttribute(c, 3)); return g;
+    }
+    const geo = {};
+    await Promise.all([...new Set(Object.values(rig.mesh))].map(async m => { geo[m] = parseSTL(await fetch(`model/${m}.stl`).then(r => r.arrayBuffer())); }));
+    const nodes = {}; const d = Math.PI / 180;
+    for (const name of Object.keys(rig.bodies)) {
+      const b = rig.bodies[name]; const node = new THREE.Group(); node.name = name;
+      node.position.set(b.pos[1], b.pos[2], b.pos[0]);
+      node.quaternion.set(b.quat[2], b.quat[3], b.quat[1], b.quat[0]);
+      const pose = rig.pose[name];
+      if (pose) {
+        const q = new THREE.Quaternion();
+        for (const ax of rig.axis_order) {
+          const a = (pose[ax] || 0) * d; if (!a) continue;
+          // rig.json already holds mirrored yaw and roll for the right legs.
+          const axis = ax === "pitch" ? X : ax === "roll" ? Y : Z;
+          q.multiply(new THREE.Quaternion().setFromAxisAngle(axis, a));
+        }
+        node.quaternion.multiply(q);
+      }
+      const meshName = rig.mesh[name];
+      if (geo[meshName]) {
+        let g = name[0] === "r" && meshName[0] === "l" ? mirrored(geo[meshName]) : geo[meshName];
+        const mat = matFor(name); if (mat.vertexColors) g = stripe(g.clone(), name);
+        const mesh = new THREE.Mesh(g, mat); mesh.castShadow = true; node.add(mesh);
+      }
+      nodes[name] = node;
+      if (b.parent) nodes[b.parent].add(node);
+    }
+    const root = nodes["c_thorax"]; root.position.set(0, 0, 0);
+    const holder = new THREE.Group(); holder.add(root); holder.updateMatrixWorld(true);
+    const J = n => new Joint(nodes[n]);
+    const legs = ["lf", "lm", "lh", "rf", "rm", "rh"].map(id => {
+      const hip = nodes[`${id}_coxa`].getWorldPosition(new THREE.Vector3()), foot = nodes[`${id}_tarsus5`].getWorldPosition(new THREE.Vector3());
+      const dir = foot.clone().sub(hip); dir.y = 0; dir.normalize();
+      return {id, coxa: J(`${id}_coxa`), femur: J(`${id}_trochanterfemur`), tibia: J(`${id}_tibia`), tarsus: J(`${id}_tarsus1`),
+              lift: dir.clone().cross(Y).normalize(), fwd: -Math.sign(dir.x) || 1, group: {lf: 0, rm: 0, lh: 0, rf: 1, lm: 1, rh: 1}[id]};
+    });
+    const wings = ["l_wing", "r_wing"].map(n => {
+      const c = new THREE.Box3().setFromObject(nodes[n]).getCenter(new THREE.Vector3()), j = nodes[n].getWorldPosition(new THREE.Vector3());
+      return {side: Math.sign(c.x - j.x) || (n[0] === "l" ? 1 : -1), joint: J(n)};
+    });
+    const halteres = ["l_haltere", "r_haltere"].map(n => ({side: n[0] === "l" ? 1 : -1, joint: J(n)}));
+    const ants = ["l_pedicel", "r_pedicel"].map(n => ({side: n[0] === "l" ? 1 : -1, joint: J(n)}));
+    const rigObj = {holder, legs, wings, halteres, ants, head: J("c_head"), rostrum: J("c_rostrum"), haustellum: J("c_haustellum"),
+                    stride: 0, tuck: 0, spread: 0, sip: 0, groomH: 0, groomB: 0, twitch: 0};
+    const box = new THREE.Box3().setFromObject(holder); const size = box.getSize(new THREE.Vector3());
+    const k = BODY / size.z; holder.scale.setScalar(k); holder.updateMatrixWorld(true);
+    const box2 = new THREE.Box3().setFromObject(holder); holder.position.y = -box2.min.y; holder.position.z = -(box2.min.z + box2.max.z) / 2;
+    nodes["c_head"].add(brain); brain.position.set(0, 0.05, 0.08);
+    fly.add(holder); R = rigObj;
+  }
+  loadRig().catch(e => console.warn("rig not loaded", e));
+
+  const ease = (a, b, dt, k) => a + (b - a) * Math.min(1, dt * k);
+  // Speed in units per second. Airborne folds the legs and opens the wings.
+  // act: {feeding, groom: "head"|"body", sniff}
+  function animateRig(speed, dt, airborne, t, act) {
+    R.stride += Math.abs(speed) * dt / (0.6 * BODY) * Math.PI * 2;   // one cycle per 0.6 body lengths
+    const gait = airborne ? 0 : Math.min(1, Math.abs(speed) / (WALK * 0.5));
+    R.tuck = ease(R.tuck, airborne ? 1 : 0, dt, 6);
+    R.spread = ease(R.spread, airborne ? 1 : 0, dt, 8);
+    R.sip = ease(R.sip, act.feeding && !airborne ? 1 : 0, dt, 3);
+    R.groomH = ease(R.groomH, act.groom === "head" && !airborne ? 1 : 0, dt, 5);
+    R.groomB = ease(R.groomB, act.groom === "body" && !airborne ? 1 : 0, dt, 5);
+    R.twitch = ease(R.twitch, act.sniff && !airborne ? 1 : 0, dt, 4);
+    const rub = Math.sin(t * 30);
+    for (const L of R.legs) {
+      const p = R.stride + (L.group ? Math.PI : 0);
+      const swing = Math.sin(p) * 0.28 * gait, up = Math.max(0, Math.cos(p));
+      const lift = up * 0.35 * gait, flex = up * 0.5 * gait;
+      L.coxa.reset(); L.femur.reset(); L.tibia.reset(); L.tarsus.reset();
+      L.coxa.turn(Y, L.fwd * (swing - 0.5 * R.tuck));
+      L.coxa.turn(L.lift, lift + 0.45 * R.tuck);
+      L.tibia.turn(L.lift, -(flex + 1.2 * R.tuck));
+      L.tarsus.turn(L.lift, -0.4 * R.tuck);
+      const front = L.id[1] === "f", hind = L.id[1] === "h", s = L.id[0] === "l" ? 1 : -1;
+      if (front && R.groomH > 0) { L.coxa.turn(Y, L.fwd * 0.55 * R.groomH); L.coxa.turn(L.lift, (0.75 + 0.18 * rub * s) * R.groomH); L.tibia.turn(L.lift, -(1.3 + 0.2 * rub * s) * R.groomH); }
+      if (hind && R.groomB > 0) { L.coxa.turn(Y, -L.fwd * 0.5 * R.groomB); L.coxa.turn(L.lift, (0.7 + 0.15 * rub * s) * R.groomB); L.tibia.turn(L.lift, -(1.1 + 0.25 * rub * s) * R.groomB); }
+    }
+    // Wings beat mostly above the body plane; stroboscopic, like the simulator.
+    const flap = airborne ? 0.3 + Math.sin(t * 75) * 0.6 : 0;
+    for (const W of R.wings) { W.joint.reset(); W.joint.turn(Y, -W.side * 1.15 * R.spread); W.joint.turn(Z, W.side * flap); }
+    for (const H of R.halteres) { H.joint.reset(); H.joint.turn(Z, H.side * flap * 0.5); }
+    for (const A of R.ants) { A.joint.reset(); A.joint.turn(Y, A.side * Math.sin(t * 9 + A.side) * 0.22 * R.twitch); A.joint.turn(X, Math.sin(t * 7) * 0.1 * R.twitch); }
+    R.rostrum.reset(); R.haustellum.reset();
+    R.rostrum.turn(X, -1.5 * R.sip); R.haustellum.turn(X, 2.8 * R.sip);
+    R.head.reset(); R.head.turn(X, 0.03 * Math.sin(R.stride * 2) * gait + (R.groomH ? Math.sin(t * 7) * 0.1 * R.groomH : 0));
+  }
+
+  // ---- behaviour ---------------------------------------------------------
+  // The fly flies to a card, lands, walks a little on it while its antennae
+  // work, tastes it, and leaves. How long it stays is the verdict.
+  let mode = "idle", waypoints = [], dwellMs = 0, dwellUntil = 0, onDone = null, current = pick;
+  let flight = null, onArrive = null;   // flight: {from, to, s, len}
+  const act = {feeding: false, groom: null, sniff: false};
+  let heading = 0, speedNow = 0;
+  const say = s => caption && caption(s);
+  const onCard = (sym, spread = 0.8) => { const p = dish[sym]; return new THREE.Vector3(p.x + rnd(-1, 1) * CARD.w / 2 * spread, 0, p.z + rnd(-1, 1) * CARD.h / 2 * spread); };
+  const nearby = (p, r) => new THREE.Vector3(p.x + rnd(-r, r), 0, p.z + rnd(-r, r));
+  function takeOff(to) {
+    flight = {from: fly.position.clone().setY(0), to: to.clone().setY(0), s: 0};
+    flight.len = Math.max(1, flight.from.distanceTo(flight.to)); mode = "fly";
+  }
+  function visit(sym, verdict, done, arrive) {
+    if (!dish[sym]) { done && done(); return; }
+    current = sym; onDone = done || null; onArrive = arrive || null; act.groom = null;
+    brainM.userData.level = Math.min(1, ((stocks[sym].cells ? stocks[sym].cells.length : stocks[sym].n) || 0) / 90);
+    const land = onCard(sym, 0.7);
+    waypoints = [nearby(land, 2.5), nearby(land, 2.5)];
+    dwellMs = 1400 + Math.max(0, verdict) / 3 * 2600;
+    takeOff(land); say(`Flying to ${sym}`);
+  }
+  function settle(sym, done, arrive) {
+    if (!dish[sym]) return;
+    current = sym; onDone = done || null; onArrive = arrive || null; act.groom = null;
+    waypoints = [nearby(dish[sym], 3)]; dwellMs = 7000; takeOff(onCard(sym, 0.4)); say(`Going back to ${sym}`);
+  }
+  function goto(sym) { visit(sym, stocks[sym].verdict, null); }
+  function abort() { onDone = null; onArrive = null; exploring = false; }
+
+  // Off duty, the fly does what flies do: walks somewhere, flies somewhere,
+  // stops to groom or rest.
+  let exploring = false;
+  const randomSpot = () => new THREE.Vector3(rnd(-TABLE.x, TABLE.x), 0, rnd(-TABLE.z, TABLE.z));
+  function explore(steps, done) {
+    exploring = true; let left = steps;
+    const step = () => {
+      if (!exploring) return;
+      if (left-- <= 0) { exploring = false; done && done(); return; }
+      const r = Math.random(); onDone = step; act.groom = null;
+      if (held.length && r < 0.14) { const h = held[Math.floor(Math.random() * held.length)]; exploring = false; visit(h, stocks[h].verdict, () => { exploring = true; step(); }, () => onSniff && onSniff(h)); return; }
+      if (r < 0.5) { waypoints = [nearby(fly.position, 2.5), nearby(fly.position, 2.5)]; dwellMs = 300 + Math.random() * 500; mode = "walk"; say("Walking"); }
+      else if (r < 0.7) { const q = randomSpot(); waypoints = [nearby(q, 1.5)]; dwellMs = 300; takeOff(q); say("Flying"); }
+      else if (r < 0.85) { waypoints = []; dwellMs = 1400 + Math.random() * 1400; mode = "walk"; act.groom = Math.random() < 0.6 ? "head" : "body"; say("Grooming"); }
+      else { waypoints = []; dwellMs = 1600 + Math.random() * 1800; mode = "walk"; say("Resting"); }
+    };
+    step();
+  }
+  function idle() { if (!exploring && mode === "idle") explore(1e9, null); }
+
+  const tmp = new THREE.Vector3();
+  function step(dt, now) {
+    let airborne = false; speedNow = 0;
+    if (mode === "fly") {
+      airborne = true;
+      flight.s = Math.min(1, flight.s + dt * FLIGHT / flight.len);
+      const s = flight.s, e = s * s * (3 - 2 * s);
+      tmp.lerpVectors(flight.from, flight.to, e);
+      const h = Math.min(AIR, flight.len * 0.35) * Math.sin(Math.PI * s) + 0.03 * Math.sin(now * 0.02);
+      const ahead = tmp.clone().sub(fly.position);
+      fly.position.set(tmp.x, h, tmp.z); speedNow = FLIGHT;
+      if (ahead.lengthSq() > 1e-6) heading = Math.atan2(ahead.x, ahead.z);
+      if (s >= 1) { fly.position.y = 0; mode = "walk"; if (dish[current] && !exploring) say(`Sniffing ${current}`); if (onArrive) { const f = onArrive; onArrive = null; f(); } }
+    } else if (mode === "walk") {
+      const w = waypoints[0];
+      if (!w) { mode = "dwell"; dwellUntil = now + dwellMs; act.feeding = !exploring; act.sniff = !exploring; return false; }
+      const d = w.clone().sub(fly.position); d.y = 0; const dist = d.length();
+      if (dist < 0.12) { waypoints.shift(); return false; }
+      const want = Math.atan2(d.x, d.z); let diff = want - heading; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      const turn = Math.sign(diff) * Math.min(Math.abs(diff), dt * 5); heading += turn;
+      if (Math.abs(diff) < 0.6) { const v = Math.min(dist, WALK * dt); fly.position.x += Math.sin(heading) * v; fly.position.z += Math.cos(heading) * v; speedNow = WALK; }
+      else speedNow = WALK * 0.5;
+      act.sniff = !exploring;
+    } else if (mode === "dwell") {
+      if (now >= dwellUntil) {
+        mode = "idle"; act.feeding = false; act.sniff = false;
+        if (onDone) { const f = onDone; onDone = null; f(); } else say(`Staying on ${current}`);
+      }
+    }
+    fly.rotation.y = heading;
+    return airborne;
+  }
+
+  // ---- camera --------------------------------------------------------------
+  let view = "follow", orbit = 0.6, tilt = 0, dragging = null, dragUntil = 0, debugTop = false;
+  canvas.addEventListener("pointerdown", e => { dragging = {x: e.clientX, y: e.clientY}; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener("pointermove", e => { if (!dragging) return; orbit += (e.clientX - dragging.x) * 0.006; tilt = Math.max(-0.6, Math.min(1.2, tilt - (e.clientY - dragging.y) * 0.004)); dragging = {x: e.clientX, y: e.clientY}; dragUntil = performance.now() + 4000; });
+  canvas.addEventListener("pointerup", () => { dragging = null; });
+  const camPos = new THREE.Vector3(0, 60, 90), look = new THREE.Vector3(), wantPos = new THREE.Vector3(), wantLook = new THREE.Vector3(), camOff = new THREE.Vector3(0, 60, 90);
+  function setView(v) { view = v; }
+  function updateCamera(dt, moving) {
+    // The camera drifts round the fly all the time, faster when it travels.
+    if (!reduce && performance.now() > dragUntil) orbit += dt * (moving ? 0.1 : 0.05);
+    const aspect = camera.aspect || 1.6, fit = Math.max(1, 1.6 / aspect);
+    if (view === "wide") { const d = 108 * fit; wantPos.set(Math.sin(orbit * 0.2) * d, (62 + tilt * 40) * fit, Math.cos(orbit * 0.2) * d); wantLook.set(0, 0, 0); }
+    else {
+      const dist = (view === "close" ? 0.9 : 2.4) * fit, height = (view === "close" ? 0.42 : 0.95) * (1 + tilt);
+      wantLook.copy(fly.position); wantLook.y += view === "close" ? BODY * 0.4 : 0.2;
+      wantPos.set(fly.position.x + Math.sin(orbit) * dist, fly.position.y + height, fly.position.z + Math.cos(orbit) * dist);
+    }
+    // The camera rides with the fly: its position is the fly's plus an offset
+    // that eases, so a flight never leaves the frame and a view change glides.
+    if (view === "wide") { camPos.lerp(wantPos, Math.min(1, dt * 2)); look.lerp(wantLook, Math.min(1, dt * 2)); }
+    else { wantPos.sub(fly.position); camOff.lerp(wantPos, Math.min(1, dt * 4)); camPos.copy(fly.position).add(camOff); look.copy(wantLook); }
+    camera.position.copy(camPos); camera.lookAt(look);
+    if (debugTop) { camera.position.set(fly.position.x + 0.001, fly.position.y + 1.1, fly.position.z); camera.lookAt(fly.position); }
+    // On a narrow viewport the brain panel covers the middle, so keep the fly
+    // in the left third of the frame.
+    if (view !== "wide" && canvas.clientWidth < 900) camera.rotateY(-0.28);
+  }
+
+  const t0 = performance.now(); let last = t0;
+  function frame(now) {
+    resize();
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; const t = (now - t0) / 1000;
+    let airborne = false;
+    if (reduce) { const q = dish[current]; if (q) fly.position.set(q.x, 0, q.z); }
+    else airborne = step(dt, now);
+    if (mode === "idle" && !exploring && !reduce) idle();
+    const moving = mode === "fly" || (mode === "walk" && waypoints.length > 0);
+    if (R) animateRig(reduce ? 0 : speedNow, dt, airborne, t, act);
+    const level = brainM.userData.level || 0;
+    brainM.opacity = act.sniff || act.feeding ? level * 0.45 * (0.55 + 0.45 * Math.abs(Math.sin(t * 6))) : 0;
+    sun.position.copy(fly.position).add(tmp.set(18, 40, 12)); sun.target.position.copy(fly.position);
+    if (!reduce) motes.step(dt, t);
+    updateCamera(dt, moving);
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  function resize() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+  }
+  fly.position.set(dish[pick].x + 3, 0, dish[pick].z + 2);
+  window.__fly3d = {scene, camera, renderer, fly, top: v => { debugTop = v; }, debug: () => ({mode, view, tilt, orbit, look: look.toArray(), wantLook: wantLook.toArray(), camPos: camPos.toArray(), waypoints: waypoints.length, act: {...act}, exploring, flight: flight && flight.s})};
+  requestAnimationFrame(frame);
+  // How busy the body is, 0 to 1: resting, grooming, walking, flying. The
+  // readout under the brain uses it for its baseline.
+  function activity() {
+    if (reduce) return 0.1;
+    if (mode === "fly") return 0.9;
+    if (mode === "walk" && waypoints.length) return 0.5;
+    if (act.groom) return 0.3;
+    if (act.sniff || act.feeding) return 0.35;
+    return 0.08;
+  }
+  return {visit, settle, goto, abort, explore, setView, activity, setHeld: h => { held = h.slice(); }, get view() { return view; }};
+};

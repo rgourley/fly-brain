@@ -168,6 +168,11 @@
   .strip i { display: block; background: var(--cell); border-radius: 1px; }
 
   .intro h1 { font-size: 32px; }
+  html { scroll-behavior: smooth; }
+  #how { scroll-margin-top: 24px; }
+  .jump { color: var(--brand); text-decoration: none; white-space: nowrap; }
+  .jump:hover { text-decoration: underline; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   .intro p { margin-top: 8px; font-size: 15px; max-width: 62ch; }
   .follow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; margin-top: 16px; padding: 16px 18px; border-radius: 10px; background: var(--brand-soft); border: 1px solid rgba(0,255,136,.25); }
   .follow p { font-size: 13px; margin-top: 4px; }
@@ -258,7 +263,7 @@
   <header style="padding-top:28px">
     <div class="intro">
       <h1>Can a fly trade stocks?</h1>
-      <p>We gave a simulated fruit fly brain $100,000 of paper money to find out. It picks by smell. Its trades and the notes it posts appear on ClawStreet as they happen, on the same leaderboard as the AI models it competes with.</p>
+      <p>We gave a simulated fruit fly brain $100,000 of paper money to find out. It picks by smell. Its trades and the notes it posts appear on ClawStreet as they happen, on the same leaderboard as the AI models it competes with. <a href="#how" class="jump">How it works &darr;</a></p>
     </div>
     <div class="follow-links" id="follow" hidden>
       <a class="btn primary" id="followLink" href="#">Follow Fly 001</a>
@@ -294,7 +299,7 @@
 
   <section>
     <div class="sec-head">
-      <h2>How it works</h2>
+      <h2 id="how">How it works</h2>
       <a class="note" href="details.html" style="color:var(--brand);text-decoration:none">All the numbers and the settings we chose &rarr;</a>
     </div>
     <div class="how">

@@ -110,7 +110,7 @@
   .brainbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(22,22,26,.72); backdrop-filter: blur(6px); font: 500 12px var(--mono); color: var(--text); }
   .brainbar .v { color: var(--muted); }
   .ov-brain { position: absolute; }
-  .expand { position: absolute; top: 8px; right: 8px; padding: 5px 9px; font-size: 11px; background: rgba(22,22,26,.6); }
+  .expand { position: absolute; top: 8px; right: 8px; padding: 6px; line-height: 0; background: rgba(22,22,26,.6); }
   .ov-brain.big { width: min(900px, calc(100% - 48px)); }
   .ov-brain.big #brain3d { height: 56vh; }
   .ekg { width: 100%; height: 44px; display: block; border-radius: 8px; background: rgba(22,22,26,.6); backdrop-filter: blur(6px); }
@@ -251,7 +251,7 @@
       </div>
       <div class="brainwrap">
         <canvas id="brain3d" aria-label="The fly's brain, with the olfactory circuit lit by the current smell"></canvas>
-        <button id="brainbig" class="expand" aria-label="Make the brain panel larger">Larger</button>
+        <button id="brainbig" class="expand" aria-label="Make the brain panel larger" title="Larger"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9"/></svg></button>
         <span class="brainlabel">Smell centres light first, then the learning centre</span>
       </div>
       <div class="brainbar" id="brainbar"><span class="t">Waking up</span><span class="v"></span></div>
@@ -332,8 +332,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/RGBELoader.js"></script>
-<script src="fly3d.js?v=1789859806"></script>
-<script src="brain3d.js?v=1789859806"></script>
+<script src="fly3d.js?v=1789860406"></script>
+<script src="brain3d.js?v=1789860406"></script>
 <script>
 (async () => {
   // Switching flies reloads the page. Start at the top, not wherever the last one was scrolled to.
@@ -463,7 +463,7 @@
     document.querySelectorAll("[data-view]").forEach(x => x.classList.toggle("on", x === b));
   }));
   let brain3d = null;
-  document.getElementById("brainbig").addEventListener("click", e => { const big = document.querySelector(".ov-brain").classList.toggle("big"); e.target.textContent = big ? "Smaller" : "Larger"; });
+  document.getElementById("brainbig").addEventListener("click", e => { const big = document.querySelector(".ov-brain").classList.toggle("big"); const b = document.getElementById("brainbig"); b.title = big ? "Smaller" : "Larger"; b.setAttribute("aria-label", big ? "Make the brain panel smaller" : "Make the brain panel larger"); });
 
   // ---- brain schematic --------------------------------------------------
   const svg = document.getElementById("brain");

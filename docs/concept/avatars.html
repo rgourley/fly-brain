@@ -1,0 +1,23 @@
+<meta charset="utf-8">
+<title>Fly avatar candidates</title>
+<style>
+  body { margin: 0; background: #0d0d10; color: #f0f0f5; font: 14px/1.5 Inter, system-ui, sans-serif; padding: 28px 32px; }
+  h1 { font-size: 22px; margin: 0 0 4px; } p { color: #9191a0; margin: 0 0 24px; max-width: 70ch; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .c { background: #16161a; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 14px; }
+  .c b { font: 600 13px "JetBrains Mono", monospace; display: block; margin-bottom: 10px; }
+  .big { width: 100%; aspect-ratio: 1; border-radius: 14px; background: #2E2E37 center/cover no-repeat; }
+  .row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .row i { display: block; border-radius: 22%; background: #2E2E37 center/cover no-repeat; flex: none; }
+  .row span { font: 11px "JetBrains Mono", monospace; color: #9191a0; margin-left: auto; }
+</style>
+<h1>Fly avatar candidates</h1>
+<p>Rendered from the same 3D model as the page, on ClawStreet's avatar tile colour. The small row is the size they appear in the leaderboard and feed: 64, 40, 28 and 20 px.</p>
+<div class="grid" id="g"></div>
+<script>
+  const names = {"a-threequarter-left":"A · three-quarter, left","b-threequarter-right":"B · three-quarter, right","c-face":"C · face on","d-profile":"D · profile","e-above":"E · from above","f-wings-out":"F · wings out","g-grooming":"G · grooming","h-head-tight":"H · head, tight"};
+  document.getElementById("g").innerHTML = Object.entries(names).map(([f, l]) => {
+    const u = `url(avatars/${f}.png?v=${Date.now()})`;
+    return `<div class="c"><b>${l}</b><div class="big" style="background-image:${u}"></div><div class="row">${[64,40,28,20].map(s => `<i style="width:${s}px;height:${s}px;background-image:${u}"></i>`).join("")}<span>64 · 40 · 28 · 20</span></div></div>`;
+  }).join("");
+</script>

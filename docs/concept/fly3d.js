@@ -463,8 +463,38 @@ window.Fly3D = function (opts) {
     if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; slideNow = -1; camera.clearViewOffset(); camera.updateProjectionMatrix(); }
   }
   { const home = dish[pick] || dish[order[0]]; fly.position.set(home.x + 3, 0, home.z + 2); }
-  window.__fly3d = {scene, camera, renderer, fly, top: v => { debugTop = v; }, debug: () => ({mode, view, tilt, orbit, look: look.toArray(), wantLook: wantLook.toArray(), camPos: camPos.toArray(), waypoints: waypoints.length, act: {...act}, exploring, flight: flight && flight.s})};
+  window.__fly3d = {scene, camera, renderer, fly, portrait, top: v => { debugTop = v; }, debug: () => ({mode, view, tilt, orbit, look: look.toArray(), wantLook: wantLook.toArray(), camPos: camPos.toArray(), waypoints: waypoints.length, act: {...act}, exploring, flight: flight && flight.s})};
   requestAnimationFrame(frame);
+  // A portrait of the fly alone on a transparent ground, for avatars. Same model,
+  // same materials and light as the scene. yaw and pitch are in radians, measured
+  // from the fly's own heading, so yaw 0 looks it in the face.
+  function portrait({size = 512, yaw = 0.6, pitch = 0.35, dist = 0.5, aim = [0, 0.1, 0.09], pose = "stand", fov = 28} = {}) {
+    if (!R) return null;
+    const hidden = scene.children.filter(o => o !== fly && !o.isLight && o.visible);
+    hidden.forEach(o => { o.visible = false; });
+    const fog = scene.fog, was = {pos: fly.position.clone(), rot: fly.rotation.y, glow: brainM.opacity};
+    // A render target skips the screen's tone mapping, so the same lights come out too bright. Turn them down for the shot.
+    const lights = scene.children.filter(o => o.isLight), levels = lights.map(l => l.intensity);
+    lights.forEach(l => { l.intensity *= 0.52; });
+    scene.fog = null; brainM.opacity = 0; fly.position.set(0, pose === "fly" ? 1 : 0, 0); fly.rotation.y = 0;
+    animateRig(0, 1, pose === "fly", 0.011, {feeding: pose === "feed", groom: pose === "groom" ? "head" : null, sniff: false});
+    sun.position.set(18, 40, 12).add(fly.position); sun.target.position.copy(fly.position); sun.target.updateMatrixWorld();
+    const cam = new THREE.PerspectiveCamera(fov, 1, 0.01, 50);
+    const at = new THREE.Vector3(aim[0], aim[1], aim[2]).add(fly.position);
+    cam.position.set(at.x + Math.sin(yaw) * Math.cos(pitch) * dist, at.y + Math.sin(pitch) * dist, at.z + Math.cos(yaw) * Math.cos(pitch) * dist);
+    cam.lookAt(at);
+    const target = new THREE.WebGLRenderTarget(size, size, {samples: 4}); target.texture.encoding = THREE.sRGBEncoding;
+    const clear = new THREE.Color(); renderer.getClearColor(clear); const alpha = renderer.getClearAlpha();
+    renderer.setClearColor(0x000000, 0); renderer.setRenderTarget(target); renderer.clear(); renderer.render(scene, cam);
+    const px = new Uint8Array(size * size * 4); renderer.readRenderTargetPixels(target, 0, 0, size, size, px);
+    renderer.setRenderTarget(null); renderer.setClearColor(clear, alpha); target.dispose();
+    lights.forEach((l, k) => { l.intensity = levels[k]; });
+    hidden.forEach(o => { o.visible = true; }); scene.fog = fog; fly.position.copy(was.pos); fly.rotation.y = was.rot; brainM.opacity = was.glow;
+    const c = document.createElement("canvas"); c.width = c.height = size; const g = c.getContext("2d"), img = g.createImageData(size, size);
+    for (let y = 0; y < size; y++) img.data.set(px.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);   // GL rows run bottom-up
+    g.putImageData(img, 0, 0); return c;
+  }
+
   // How busy the body is, 0 to 1: resting, grooming, walking, flying. The
   // readout under the brain uses it for its baseline.
   function activity() {

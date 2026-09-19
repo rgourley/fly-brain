@@ -81,6 +81,9 @@
   .needs span { display: flex; align-items: center; gap: 6px; }
   .needs i { display: block; width: 58px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.14); overflow: hidden; }
   .needs b { display: block; height: 100%; width: 0; background: var(--text-2); border-radius: 2px; transition: width .4s linear; }
+  .lede { font-size: 16px; line-height: 1.6; max-width: 62ch; margin: -4px 0 20px; color: var(--text); }
+  .lede a { color: var(--brand); text-decoration: none; white-space: nowrap; }
+  .lede a:hover { text-decoration: underline; }
   .how { display: grid; max-width: 860px; }
   .how div { display: grid; grid-template-columns: 210px 1fr; gap: 6px 28px; padding: 16px 0; border-top: 1px solid var(--border); }
   .how div:first-child { border-top: 0; padding-top: 4px; }
@@ -301,6 +304,7 @@
     <div class="sec-head">
       <h2 id="how">How it works</h2>
     </div>
+    <p class="lede">The short version is below: six steps from a price chart to a trade. For the wiring, the experiments that failed, and the script behind every number, read <a href="details.html">how the fly works, in detail &rarr;</a></p>
     <div class="how">
       <div><h3>Charts become smells</h3><p>A fly cannot read a chart, so each stock's setup is turned into a smell. Six standard readings, such as RSI and volume against its average, are spread across the fly's 51 smell channels. It never sees a ticker, so what it learns on one company applies to any other in the same situation.</p></div>
       <div><h3>A real brain decides</h3><p>The wiring is a complete map of one fruit fly's nervous system, about 166,000 neurons, published in 2025. We simulate the 7,443 that handle smell. Each smell lights about 2% of its 4,064 learning cells, and which ones light is the fly's opinion.</p></div>
@@ -308,13 +312,6 @@
       <div><h3>Wins and losses rewire it</h3><p>When a trade closes, the result goes back to the cells that picked it. A win makes that setup more attractive, a loss less. In testing it took seven to eleven losses to turn a setup it liked into one it avoids.</p></div>
       <div><h3>It forgets</h3><p>Every session its connections drift 2% back toward how they were at birth, so a lesson fades unless it keeps being confirmed.</p></div>
       <div><h3>Buying and selling</h3><p>It buys the best-smelling stock it does not own: more when the verdict is strong, half as much when first and second place are too close to call. It sells anything it has liked less than at purchase two sessions in a row. Nothing we have measured says it can pick stocks, and we expect it to lose to a spreadsheet.</p></div>
-    </div>
-    <div class="follow" style="max-width:860px;margin-top:20px">
-      <div>
-        <h3>How the fly works, in detail</h3>
-        <p>The wiring, why we run only the smell circuit, what we changed, the experiments that failed, and the script behind every number.</p>
-      </div>
-      <div class="follow-links"><a class="btn primary" href="details.html">Read the technical write-up</a></div>
     </div>
   </section>
 
@@ -328,8 +325,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/RGBELoader.js"></script>
-<script src="fly3d.js?v=1789859564"></script>
-<script src="brain3d.js?v=1789859564"></script>
+<script src="fly3d.js?v=1789859681"></script>
+<script src="brain3d.js?v=1789859681"></script>
 <script>
 (async () => {
   // ---- the session on screen. The inlined one (session 1, 21 Sep 2026) is the

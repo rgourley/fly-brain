@@ -15,6 +15,14 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parent.parent / "data" / "malecns"
 INHIBITORY = {"gaba", "glutamate"}
 
+# Glutamate is inhibitory across most of the fly brain, which is why the
+# blanket rule is standard. It is wrong in the visual system. L1 is
+# glutamatergic and excites Mi1, and L1 to Mi1 to T4 is the ON motion
+# pathway. Left on the default rule, L1 delivers 142,185 inhibitory
+# synapses to Mi1, Mi1 never fires, and every motion detector is silent.
+# These types are forced excitatory on the published physiology.
+FORCE_EXCITATORY = {"L1"}
+
 
 def main() -> None:
     weights = pd.read_feather(SRC / "weights.feather",
@@ -33,6 +41,13 @@ def main() -> None:
 
     sign = pd.Series(1, index=bodies, dtype="int8")
     sign[nt.isin(INHIBITORY).values] = -1
+
+    ann = pd.read_feather(SRC / "body-annotations.feather").drop_duplicates("bodyId")
+    forced = ann[ann["type"].isin(FORCE_EXCITATORY)]["bodyId"]
+    forced = bodies.intersection(pd.Index(forced))
+    sign[forced] = 1
+    print(f"forced excitatory: {len(forced):,} cells of type {sorted(FORCE_EXCITATORY)}")
+
     missing = int(nt.isna().sum())
     print(f"inhibitory: {int((sign < 0).sum()):,} | "
           f"excitatory: {int((sign > 0).sum()):,} | "

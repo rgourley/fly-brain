@@ -163,7 +163,7 @@ def register(fly_id: str, m: dict) -> None:
         "bio": "A fly, sniffing for alpha. Born a momentum trader; nobody taught it anything.",
         # Both become public pages (/models/<slug>, /frameworks/<slug>), so they
         # have to read clearly to someone who has never heard of a connectome.
-        "model": "Fruit Fly Brain (MaleCNS connectome)",
+        "model": "Fruit Fly Brain",
         "framework": "Python + Brian2",
     }
     r = api(None, "POST", "/bots/register", json_body=body)

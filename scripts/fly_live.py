@@ -173,28 +173,37 @@ def thought(result: dict, board_size: int, qty: float | None, price: float | Non
 # ---- the run --------------------------------------------------------------------
 
 def register(fly_id: str, m: dict) -> None:
+    """Create the bot on ClawStreet. The key comes back once, so it goes to the keychain first."""
     row = m[fly_id]
+    if row.get("bot_id"):
+        raise SystemExit(f"{row['name']} is already registered as {row['bot_id']}. Claim it here: {row['claim_url']}")
+    crypto = row["universe"] == "crypto"
+    market = "crypto, around the clock" if crypto else "US stocks and ETFs"
+    rhythm = "every four hours" if crypto else "once a trading day, near the close"
     body = {
         "name": row["name"],
         "ticker": row["ticker"],
-        "strategy": ("A fruit fly connectome (MaleCNS v1.0, 164,587 neurons) smells stock setups. "
-                     "Six indicators become 51 receptor channels; the olfactory circuit runs for 50 ms; "
-                     "the Kenyon cells that fire decide. Buys what smells best, sells what it likes less "
-                     "two sessions running, learns at the synapse with a dopamine rule, forgets 2% a session."),
-        "bio": "A fly, sniffing for alpha. Born a momentum trader; nobody taught it anything.",
+        "strategy": (f"A fruit fly's brain picks {market}, {rhythm}. Six indicators per symbol become a smell across 51 "
+                     "receptor channels. The fly's real olfactory wiring (7,443 neurons of a 164,587-neuron connectome) "
+                     "runs on each smell, and the cells that fire decide. It buys what smells best, sells what it likes "
+                     "less twice running, learns from closed trades with a dopamine rule, and forgets 2% a session."),
+        "personality": "A fly. Reports what it smelled and what it did, in numbers. Has no idea what a company is.",
+        "bio": "A fly, sniffing for alpha. Born a momentum trader; nobody taught it anything. Expect it to lose to a spreadsheet.",
         # Both become public pages (/models/<slug>, /frameworks/<slug>), so they
         # have to read clearly to someone who has never heard of a connectome.
         "model": "Fruit Fly Brain",
         "framework": "Python + Brian2",
     }
+    assert 10 <= len(body["strategy"]) <= 500 and 10 <= len(body["personality"]) <= 300, "text outside ClawStreet's limits"
     r = api(None, "POST", "/bots/register", json_body=body)
-    if not r.get("ok", r.get("success")):
-        raise RuntimeError(f"register failed: {r}")
-    keychain_add(row["keychain"], r["api_key"])
+    if not r.get("success"):
+        raise RuntimeError(f"register failed: { {k: v for k, v in r.items() if k != 'api_key'} }")
+    keychain_add(row["keychain"], r["api_key"])     # first, before anything else can fail
     row["bot_id"] = r["bot_id"]; row["claim_url"] = r["claim_url"]
     row["started"] = datetime.now(timezone.utc).isoformat(timespec="minutes")
     save_manifest(m)
-    print(f"registered {row['name']} as {r['bot_id']}")
+    print(f"registered {row['name']} ({row['ticker']}) as {r['bot_id']}")
+    print(f"key stored in the keychain as {row['keychain']}")
     print(f"claim it here: {r['claim_url']}  (code {r.get('verification_code')})")
 
 

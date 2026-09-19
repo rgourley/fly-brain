@@ -57,7 +57,10 @@ rfc                                    : second
 # Gain 1000 puts the mushroom body at 3.9% active, matching the sparseness
 # measured in real flies. Below it the cells saturate and every odour looks
 # alike; above it the representation thins out and starts losing detail.
-APL_GAIN = 1000.0
+# Tuned against the sliced circuit. Gain 1000 was for the whole brain,
+# which delivered far more drive through routes that are not the olfactory
+# pathway. With those gone, 250 puts the mushroom body at 4.3% active.
+APL_GAIN = 250.0
 APL_PARAMS = {"t_apl": 100 * ms}
 
 
@@ -67,7 +70,21 @@ class BrianFly:
     Loading the connectivity is the slow part, so build one and reuse it.
     """
 
-    def __init__(self, apl_gain: float = APL_GAIN) -> None:
+    def __init__(self, apl_gain: float = APL_GAIN,
+                 w_syn: float | None = None,
+                 olfactory_only: bool = True) -> None:
+        """Optionally weaken every synapse, or keep only the smell circuit.
+
+        Lowering w_syn makes signals fade as they travel, so a four-hop
+        indirect route arrives weaker than the one-hop direct one, which is
+        what a real neuron does and what this model otherwise skips.
+
+        olfactory_only keeps receptors, their direct targets, Kenyon cells,
+        APL, the output neurons and the dopamine cells. That removes the
+        indirect routes entirely rather than damping them.
+        """
+        self.w_syn = PARAMS["w_syn"] if w_syn is None else w_syn * mV
+        self.olfactory_only = olfactory_only
         comp = pd.read_csv(COMP, index_col=0)
         self.body_ids = list(comp.index)
         self.index_of = {b: i for i, b in enumerate(self.body_ids)}
@@ -82,6 +99,8 @@ class BrianFly:
         self.pre = con["Presynaptic_Index"].to_numpy()
         self.post = con["Postsynaptic_Index"].to_numpy()
         self.weight = con["Excitatory x Connectivity"].to_numpy()
+        if olfactory_only:
+            self._restrict_to_smell_circuit()
 
     def _load_mushroom_body(self) -> None:
         """Find APL and the Kenyon cells, and read their synapse counts.
@@ -105,6 +124,38 @@ class BrianFly:
         self.apl_strength = from_apl.groupby("body_post")["weight"].sum()
         # Normalise so the gain, not the raw synapse count, sets the scale.
         self.apl_strength = (self.apl_strength / self.apl_strength.mean()).to_dict()
+
+    def _restrict_to_smell_circuit(self) -> None:
+        """Drop every neuron that is not part of the olfactory pathway.
+
+        Any single glomerulus reaches more than half the Kenyon cells in the
+        whole brain, because activity finds its way round through unrelated
+        regions. Those routes exist in the animal too but arrive far too
+        weak to matter, and this model gives every synapse the same strength
+        so they arrive as loud as the direct path. Removing them restores
+        the pathway the biology actually uses.
+        """
+        ann = pd.read_feather(ANN).drop_duplicates("bodyId")
+        types = ann["type"].fillna("")
+        orn = set(int(b) for b in ann[ann["class"] == "olfactory"]["bodyId"])
+        kc = set(int(b) for b in ann[types.str.match(r"KC")]["bodyId"])
+        keep = set(orn) | set(kc)
+        keep |= set(int(b) for b in ann[types.str.contains("APL", na=False)]["bodyId"])
+        keep |= set(int(b) for b in ann[types.str.match(r"MBON")]["bodyId"])
+        keep |= set(int(b) for b in ann[types.str.match(r"(PAM|PPL1)")]["bodyId"])
+
+        # Projection neurons: whatever takes input from receptors and feeds
+        # Kenyon cells. Defined by the wiring rather than by a name.
+        w = pd.read_feather(WEIGHTS, columns=["body_pre", "body_post", "weight"])
+        from_orn = set(w[w.body_pre.isin(orn)]["body_post"])
+        to_kc = set(w[w.body_post.isin(kc)]["body_pre"])
+        keep |= (from_orn & to_kc)
+
+        allowed = np.array([self.body_ids[i] in keep for i in range(self.n)])
+        mask = allowed[self.pre] & allowed[self.post]
+        self.pre, self.post = self.pre[mask], self.post[mask]
+        self.weight = self.weight[mask]
+        self.kept = int(allowed.sum())
 
     def show_sequence(self, frames: list[dict[int, float]],
                       ms_per_frame: float = 25.0,
@@ -144,12 +195,12 @@ class BrianFly:
         syn = Synapses(neu, neu, "w : volt", on_pre="g += w",
                        delay=PARAMS["t_dly"])
         syn.connect(i=self.pre, j=self.post)
-        syn.w = self.weight * PARAMS["w_syn"]
+        syn.w = self.weight * self.w_syn
 
         drive = PoissonGroup(len(stim_ids), rates="stim(t, i)",
                              namespace={"stim": stim})
         feed = Synapses(drive, neu, on_pre="v_post += w_stim",
-                        namespace={"w_stim": PARAMS["w_syn"] * PARAMS["f_poi"]})
+                        namespace={"w_stim": self.w_syn * PARAMS["f_poi"]})
         feed.connect(i=np.arange(len(stim_ids)), j=stim_index)
 
         objects = [neu, syn, drive, feed]

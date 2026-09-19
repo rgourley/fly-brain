@@ -68,9 +68,11 @@
   .ov-tl h1 { font-size: 30px; }
   .ov-tl p.mono { font-size: 12px; letter-spacing: .03em; color: var(--text-2); }
   .ov-tl p { margin: 0; }
-  .ov-tl { display: flex; align-items: center; gap: 10px; }
-  .switch { display: flex; gap: 4px; }
-  .switch button { padding: 2px 9px; font-size: 14px; line-height: 1.3; border-radius: 6px; background: rgba(255,255,255,.08); }
+  .ov-tl { display: grid; gap: 6px; }
+  #flypick { font: 600 14px var(--sans); color: var(--text); background: rgba(255,255,255,.08); border: 1px solid var(--border); border-radius: 8px; padding: 6px 28px 6px 10px; cursor: pointer; appearance: none; -webkit-appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-2) 50%), linear-gradient(135deg, var(--text-2) 50%, transparent 50%); background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
+  #flypick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #flypick option { color: #111; }
   .controls.small { margin-top: 10px; gap: 6px; }
   .controls.small button { padding: 5px 9px; font-size: 11px; border-radius: 6px; background: rgba(22,22,26,.7); backdrop-filter: blur(6px); }
   .controls.small .seg button { border-radius: 0; } .controls.small .seg button:first-child { border-radius: 6px 0 0 6px; } .controls.small .seg button:last-child { border-radius: 0 6px 6px 0; }
@@ -230,8 +232,8 @@
   <div class="hero">
     <canvas id="fly3d" aria-label="A fruit fly at a table of six charts"></canvas>
     <div class="ov ov-tl">
-      <p class="mono" id="status">Fly 001</p>
-      <div class="switch" id="switch" hidden><button id="prevfly" aria-label="Previous fly">&lsaquo;</button><button id="nextfly" aria-label="Next fly">&rsaquo;</button></div>
+      <select id="flypick" aria-label="Choose a fly"><option>Fly 001</option></select>
+      <p class="mono" id="status"></p>
     </div>
     <div class="ov ov-brain">
       <canvas id="brain3d" aria-label="The fly's brain, with the olfactory circuit lit by the current smell"></canvas>
@@ -267,8 +269,8 @@
   <section>
     <div class="sec-head">
       <h2>Inside its head</h2>
-      <span class="note">Pick a setup to see what it smelled like and which cells fired.</span>
     </div>
+    <p style="margin:-8px 0 14px">Pick a setup to see what it smelled like and which cells fired.</p>
     <div class="setups" id="setups" role="group" aria-label="Choose a setup"></div>
     <div class="stage">
       <div class="brain">
@@ -282,8 +284,8 @@
     </div>
     <div class="sec-head" style="margin-top:24px">
       <h3 id="smellTitle" style="font-size:15px">What this setup smells like to a fly</h3>
-      <span class="note">Six readings, spread across 51 smell channels. The fly never learns which company it is.</span>
     </div>
+    <p style="margin:-8px 0 14px">Six readings, spread across 51 smell channels. The fly never learns which company it is.</p>
     <div class="smell" id="smell"></div>
   </section>
 
@@ -301,12 +303,13 @@
       <div><h3>Born with preferences</h3><p>Nobody trained it. Untrained, it already likes an overbought breakout most and a quiet drift least. By temperament it is a momentum trader.</p></div>
       <div><h3>Wins and losses rewire it</h3><p>When a trade closes, the result goes back to the cells that picked it. A win makes that setup more attractive, a loss less. In testing it took seven to eleven losses to turn a setup it liked into one it avoids.</p></div>
       <div><h3>It forgets</h3><p>Every session its connections drift 2% back toward how they were at birth, so a lesson fades unless it keeps being confirmed.</p></div>
-      <div><h3>Buying and selling</h3><p>It buys the best-smelling stock it does not own: more when the verdict is strong, half as much when first and second place are too close to call. It sells anything it has liked less than at purchase two sessions in a row. We expect it to lose to a spreadsheet.</p></div>
+      <div><h3>Buying and selling</h3><p>It buys the best-smelling stock it does not own: more when the verdict is strong, half as much when first and second place are too close to call. It sells anything it has liked less than at purchase two sessions in a row. Nothing we have measured says it can pick stocks, and we expect it to lose to a spreadsheet.</p></div>
     </div>
   </section>
 
   <footer>
     Everything that lights up on this page happened in the simulation. <a href="details.html">How the fly works, in detail &rarr;</a>
+    Built by Rob Gourley at <a href="https://www.clawstreet.io/">ClawStreet</a>: the smell encoding, the learning and selling rules, the trading agents and this page. It stands on other people's work.
     Brain wiring: MaleCNS v1.0, FlyEM at HHMI Janelia, the Cambridge Connectomics Group, and Google Research, CC BY 4.0. Body: NeuroMechFly, EPFL, Apache-2.0. Table and room light: Poly Haven, CC0.
   </footer>
 </div>
@@ -314,8 +317,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/RGBELoader.js"></script>
-<script src="fly3d.js?v=1789859304"></script>
-<script src="brain3d.js?v=1789859304"></script>
+<script src="fly3d.js?v=1789859564"></script>
+<script src="brain3d.js?v=1789859564"></script>
 <script>
 (async () => {
   // ---- the session on screen. The inlined one (session 1, 21 Sep 2026) is the
@@ -355,12 +358,13 @@
     PICK = buy ? buy.symbol : null;
     const when = new Date(replay.when);
     META = {fly: id, botId: flies[id].bot_id, name: flies[id].name, cadence: flies[id].cadence, session: start.session, dry: !!replay.dry, flies: ids,
+      roster: ids.map(k => ({id: k, label: `${flies[k].name} · ${flies[k].universe === "crypto" ? "crypto" : "US stocks"}, ${/^\d+h$/.test(flies[k].cadence) ? "every " + parseInt(flies[k].cadence) + " hours" : "daily"}`})),
       date: when.toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"}) + (flies[id].cadence === "daily" ? "" : " " + when.toISOString().slice(11, 16) + " UTC"),
       dollars: buy ? (said && said.qty && said.price ? said.qty * said.price : buy.dollars) : 0, half: buy ? buy.margin < 0.36 : false,
       thought: said ? said.body : null, sold: ev("sell").map(e => e.symbol), held: start.held};
   } catch (e) { console.info("no live replay, showing the inlined session", e); }
   const money = v => "$" + Math.round(v).toLocaleString("en-US");
-  const statusText = after => `${META.name} · session ${META.session} · ${META.date}${META.dry ? " · rehearsal" : ""} · ` +
+  const statusText = after => `Session ${META.session} · ${META.date}${META.dry ? " · rehearsal" : ""} · ` +
     (after && PICK ? `holds ${[...(META.held || []), PICK].map(short).join(", ")}` : (META.held && META.held.length ? `holds ${META.held.map(short).join(", ")}` : "nothing held yet"));
 
   // ---- the smell, same rule as fly_smell.py ---------------------------
@@ -411,10 +415,10 @@
     document.getElementById("followLink").textContent = `Follow ${META.name}`; document.getElementById("followLink").href = profile;
     document.getElementById("tradesLink").href = `${profile}/trades`;
   }
-  if (META.flies.length > 1) {
-    document.getElementById("switch").hidden = false;
-    const hop = d => { const k = (META.flies.indexOf(META.fly) + d + META.flies.length) % META.flies.length; location.search = "?fly=" + META.flies[k]; };
-    document.getElementById("prevfly").onclick = () => hop(-1); document.getElementById("nextfly").onclick = () => hop(1);
+  {
+    const pick = document.getElementById("flypick");
+    pick.innerHTML = (META.roster || [{id: META.fly, label: META.name}]).map(f => `<option value="${f.id}"${f.id === META.fly ? " selected" : ""}>${f.label}</option>`).join("");
+    pick.onchange = () => { location.search = "?fly=" + pick.value; };
   }
   if (fly3d) setInterval(() => { const n = fly3d.needs(); document.querySelectorAll("[data-need]").forEach(b => { b.style.width = Math.round(n[b.dataset.need] * 100) + "%"; }); }, 500);
   // Sessions run once a trading day. Count down to the next one.
@@ -472,7 +476,8 @@
   ["b'1","b'2"].forEach((n,i)=>compAt(n,780+i*34,248,30,26));
   ["a3","a2","a1"].forEach((n,i)=>compAt(n,700,96+i*36,30,30));
   ["a'3","a'2","a'1"].forEach((n,i)=>compAt(n,738,96+i*36,30,30));
-  text(700, 300, "trade results land here", "cap");
+  text(700, 298, "learning happens at these connections,", "cap");
+  text(700, 313, "each time a trade closes", "cap");
 
   // verdict readout lives under the diagram, in HTML, so it lays out at any width
   const vfill = document.getElementById("vfill"), vtext = document.getElementById("vtext");

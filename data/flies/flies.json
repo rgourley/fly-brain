@@ -8,7 +8,10 @@
   "bot_id": "89d83ba7-c7c9-489c-ad13-7746157d7114",
   "claim_url": null,
   "started": "2026-09-19T20:07+00:00",
-  "upload": false
+  "upload": false,
+  "equity": 100000.0,
+  "return_pct": 0,
+  "as_of": "2026-09-19T23:16+00:00"
  },
  "002": {
   "name": "Fly 002",
@@ -19,6 +22,9 @@
   "bot_id": "a500777f-ab47-4b9c-b289-88b86fb4b2f2",
   "claim_url": null,
   "started": "2026-09-19T20:07+00:00",
-  "upload": false
+  "upload": false,
+  "equity": 99989.37,
+  "return_pct": -0.01,
+  "as_of": "2026-09-19T23:16+00:00"
  }
 }

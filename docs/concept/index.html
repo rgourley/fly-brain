@@ -66,7 +66,7 @@
   .ov-tl { top: 22px; left: 32px; max-width: 520px; padding: 8px 12px; border-radius: 12px; background: rgba(13,13,16,.55); backdrop-filter: blur(8px); }
   :root[data-theme="light"] .ov-tl { background: rgba(248,249,251,.6); }
   .ov-tl h1 { font-size: 30px; }
-  .ov-tl p.mono { font-size: 12px; letter-spacing: .03em; color: var(--text-2); }
+  .ov-tl p.mono { font-size: 11px; letter-spacing: .02em; color: var(--muted); }
   .ov-tl p { margin: 0; }
   .ov-tl { display: grid; gap: 6px; }
   #flypick { font: 600 14px var(--sans); color: var(--text); background: rgba(255,255,255,.08); border: 1px solid var(--border); border-radius: 8px; padding: 6px 28px 6px 10px; cursor: pointer; appearance: none; -webkit-appearance: none;
@@ -266,7 +266,7 @@
   <header style="padding-top:28px">
     <div class="intro">
       <h1>Can a fly trade stocks?</h1>
-      <p>We gave a simulated fruit fly brain $100,000 of paper money to find out. It picks by smell. Its trades and the notes it posts appear on ClawStreet as they happen, on the same leaderboard as the AI models it competes with. <a href="#how" class="jump">How it works &darr;</a></p>
+      <p>We connected a simulated fruit fly brain to ClawStreet and gave it $100,000 of paper money to find out. It picks by smell and learns from every trade it closes. Its trades appear on ClawStreet as they happen, on the same leaderboard as the AI models it competes with. <a href="#how" class="jump">How it works &darr;</a></p>
     </div>
     <div class="follow-links" id="follow" hidden>
       <a class="btn primary" id="followLink" href="#">Follow Fly 001</a>
@@ -325,8 +325,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/RGBELoader.js"></script>
-<script src="fly3d.js?v=1789859681"></script>
-<script src="brain3d.js?v=1789859681"></script>
+<script src="fly3d.js?v=1789859806"></script>
+<script src="brain3d.js?v=1789859806"></script>
 <script>
 (async () => {
   // ---- the session on screen. The inlined one (session 1, 21 Sep 2026) is the
@@ -355,6 +355,8 @@
     const id = ids.includes(want) ? want : ids[0];
     const index = await fetch(`flies/${id}/replays/index.json`, {cache: "no-store"}).then(r => r.json());
     const replay = await fetch(`flies/${id}/replays/${index[index.length - 1]}`, {cache: "no-store"}).then(r => r.json());
+    // What the fly holds right now, which is not what it held when the replayed session began.
+    const holding = await fetch(`flies/${id}/positions.json`, {cache: "no-store"}).then(r => r.ok ? r.json() : {open: []}).catch(() => ({open: []}));
     const ev = t => replay.events.filter(e => e.type === t);
     const board = ev("board")[0].stocks, buy = ev("buy")[0], start = ev("start")[0], said = ev("thought")[0];
     STOCKS = {}; ORDER = []; LIVE_CANDLES = {};
@@ -366,14 +368,18 @@
     PICK = buy ? buy.symbol : null;
     const when = new Date(replay.when);
     META = {fly: id, botId: flies[id].bot_id, name: flies[id].name, cadence: flies[id].cadence, session: start.session, dry: !!replay.dry, flies: ids,
-      roster: ids.map(k => ({id: k, label: `${flies[k].name} · ${flies[k].universe === "crypto" ? "crypto" : "US stocks"}, ${/^\d+h$/.test(flies[k].cadence) ? "every " + parseInt(flies[k].cadence) + " hours" : "daily"}`})),
+      // The picker shows how each fly is doing: equity and return as of its last session.
+      roster: ids.map(k => { const f = flies[k], r = f.return_pct;
+        return {id: k, label: f.equity == null ? f.name : `${f.name} · $${Math.round(f.equity).toLocaleString("en-US")} · ${r > 0 ? "+" : r < 0 ? "\u2212" : ""}${Math.abs(r || 0).toFixed(2)}%`}; }),
+      holdsNow: (holding.open || []).map(p => p.symbol),
+      market: `${flies[id].universe === "crypto" ? "Crypto" : "US stocks"}, ${/^\d+h$/.test(flies[id].cadence) ? "every " + parseInt(flies[id].cadence) + " hours" : "daily"}`,
       date: when.toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"}) + (flies[id].cadence === "daily" ? "" : " " + when.toISOString().slice(11, 16) + " UTC"),
       dollars: buy ? (said && said.qty && said.price ? said.qty * said.price : buy.dollars) : 0, half: buy ? buy.margin < 0.36 : false,
       thought: said ? said.body : null, sold: ev("sell").map(e => e.symbol), held: start.held};
   } catch (e) { console.info("no live replay, showing the inlined session", e); }
   const money = v => "$" + Math.round(v).toLocaleString("en-US");
-  const statusText = after => `Session ${META.session} · ${META.date}${META.dry ? " · rehearsal" : ""} · ` +
-    (after && PICK ? `holds ${[...(META.held || []), PICK].map(short).join(", ")}` : (META.held && META.held.length ? `holds ${META.held.map(short).join(", ")}` : "nothing held yet"));
+  const statusText = () => `${META.market ? META.market + " · " : ""}Session ${META.session} · ${META.date}${META.dry ? " · rehearsal" : ""} · ` +
+    (META.holdsNow && META.holdsNow.length ? `holds ${META.holdsNow.map(short).join(", ")}` : "holds nothing yet");
 
   // ---- the smell, same rule as fly_smell.py ---------------------------
   const lin = (a,b,n)=>Array.from({length:n},(_,i)=>a+(b-a)*i/(n-1));

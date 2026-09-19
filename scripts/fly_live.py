@@ -298,6 +298,10 @@ def main() -> None:
     if bot_id and keychain(row["keychain"]):
         portfolio = api(key, "GET", f"/v1/me/agents/{bot_id}/portfolio")
         account = float(portfolio["equity"])
+        # The page's fly picker shows each fly's equity and return, as of its last session.
+        row["equity"] = round(account, 2); row["return_pct"] = portfolio.get("total_return_pct")
+        row["as_of"] = datetime.now(timezone.utc).isoformat(timespec="minutes")
+        save_manifest(m)
         closed = closed_positions(key, bot_id, positions["open"] + positions["pending"])
         live = {p["symbol"] for p in portfolio.get("positions", [])}
         filled = {f["symbol"] for f in api(key, "GET", f"/v1/me/agents/{bot_id}/fills?limit=500")["data"]}

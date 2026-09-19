@@ -24,6 +24,8 @@ REGIONS_ACROSS = 4
 REGIONS_DOWN = 2
 N_REGIONS = REGIONS_ACROSS * REGIONS_DOWN
 MAX_HZ = 200.0
+# Every chart is drawn against this shared range, in fractional change.
+PCT_RANGE = 0.15
 
 
 @dataclass(frozen=True)
@@ -133,9 +135,12 @@ def draw_candles(bars: list[Bar], width: int, height: int,
         return image
 
     def row_of(price: float) -> int:
-        # Higher price sits nearer the top of the image.
+        # Higher price sits nearer the top of the image. Anything beyond the
+        # shared range pins to the edge. Without the clamp a negative index
+        # wraps and a strong riser gets drawn along the bottom.
         frac = (price - lows) / span
-        return int(round((1.0 - frac) * (height - 1)))
+        row = int(round((1.0 - frac) * (height - 1)))
+        return max(0, min(height - 1, row))
 
     for x, bar in enumerate(bars):
         top, bottom = row_of(bar.high), row_of(bar.low)
@@ -145,11 +150,28 @@ def draw_candles(bars: list[Bar], width: int, height: int,
     return image
 
 
-def price_scale(bars: list[Bar]) -> tuple[float, float]:
-    """Return the low and high of a whole series, for a fixed vertical axis."""
+def to_relative(bars: list[Bar]) -> list[Bar]:
+    """Express a series as fractional change from its first open.
+
+    Without this every chart scales to its own high and low, so a stock
+    that moved 0.1% and one that moved 40% draw the same picture, and a
+    flat series stretches its own tiny wicks across the whole frame.
+    """
     if not bars:
-        return (0.0, 1.0)
-    return (min(b.low for b in bars), max(b.high for b in bars))
+        return []
+    base = bars[0].open
+    if base == 0:
+        return bars
+    return [
+        Bar((b.open - base) / base, (b.high - base) / base,
+            (b.low - base) / base, (b.close - base) / base)
+        for b in bars
+    ]
+
+
+def price_scale(bars: list[Bar]) -> tuple[float, float]:
+    """Return the shared vertical range every chart is drawn against."""
+    return (-PCT_RANGE, PCT_RANGE)
 
 
 def animate_board(board: dict[int, list[Bar]], grid: Grid,
@@ -162,14 +184,13 @@ def animate_board(board: dict[int, list[Bar]], grid: Grid,
 
     Every region needs at least `frames + grid.width` bars.
     """
-    scales = {region: price_scale(bars) for region, bars in board.items()}
     sequence = []
     for t in range(frames):
         window = {
             region: bars[t:t + grid.width]
             for region, bars in board.items()
         }
-        sequence.append(board_to_rates(window, grid, scales))
+        sequence.append(board_to_rates(window, grid))
     return sequence
 
 
@@ -177,9 +198,9 @@ def board_to_rates(board: dict[int, list[Bar]], grid: Grid,
                    scales: dict[int, tuple[float, float]] | None = None,
                    ) -> dict[int, float]:
     """Turn a region-to-bars mapping into a firing rate per input cell."""
+    scale = (-PCT_RANGE, PCT_RANGE)
     images = {
-        region: draw_candles(bars, grid.width, grid.height,
-                             None if scales is None else scales.get(region))
+        region: draw_candles(to_relative(bars), grid.width, grid.height, scale)
         for region, bars in board.items()
     }
 

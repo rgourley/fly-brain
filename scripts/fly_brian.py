@@ -20,6 +20,8 @@ from brian2 import (Hz, Network, NeuronGroup, PoissonGroup, SpikeMonitor,
 ROOT = Path(__file__).resolve().parent.parent
 COMP = ROOT / "data/malecns/2026_Completeness_malecns.csv"
 CONN = ROOT / "data/malecns/2026_Connectivity_malecns.parquet"
+ANN = ROOT / "data/malecns/body-annotations.feather"
+WEIGHTS = ROOT / "data/malecns/weights.feather"
 
 prefs.codegen.target = "cython"
 
@@ -36,10 +38,27 @@ PARAMS = {
 }
 
 EQS = """
-dv/dt = (v_0 - v + g) / t_mbr : volt (unless refractory)
-dg/dt = -g / tau               : volt (unless refractory)
-rfc                            : second
+dv/dt = (v_0 - v + g - inhib) / t_mbr : volt (unless refractory)
+dg/dt = -g / tau                       : volt (unless refractory)
+dtrace/dt = -trace / t_apl             : 1
+inhib                                  : volt
+rfc                                    : second
 """
+
+# APL does not spike. It releases GABA continuously, in proportion to how
+# much Kenyon cell activity it sees, and that feedback is what holds the
+# mushroom body at roughly 5% active. Forced to spike like every other cell
+# in this model it fires at 363 Hz and holds nothing down, so odours all
+# produce the same pattern and cannot be told apart.
+#
+# APL_GAIN is the one number here that is not from the connectome. It is set
+# so sparseness matches the level measured in real flies. The per-cell
+# strengths still come from the 196,200 APL synapses in the data.
+# Gain 1000 puts the mushroom body at 3.9% active, matching the sparseness
+# measured in real flies. Below it the cells saturate and every odour looks
+# alike; above it the representation thins out and starts losing detail.
+APL_GAIN = 1000.0
+APL_PARAMS = {"t_apl": 100 * ms}
 
 
 class BrianFly:
@@ -48,11 +67,13 @@ class BrianFly:
     Loading the connectivity is the slow part, so build one and reuse it.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, apl_gain: float = APL_GAIN) -> None:
         comp = pd.read_csv(COMP, index_col=0)
         self.body_ids = list(comp.index)
         self.index_of = {b: i for i, b in enumerate(self.body_ids)}
         self.n = len(self.body_ids)
+        self.apl_gain = apl_gain
+        self._load_mushroom_body()
         con = pd.read_parquet(
             CONN,
             columns=["Presynaptic_Index", "Postsynaptic_Index",
@@ -61,6 +82,29 @@ class BrianFly:
         self.pre = con["Presynaptic_Index"].to_numpy()
         self.post = con["Postsynaptic_Index"].to_numpy()
         self.weight = con["Excitatory x Connectivity"].to_numpy()
+
+    def _load_mushroom_body(self) -> None:
+        """Find APL and the Kenyon cells, and read their synapse counts.
+
+        The graded feedback uses the real per-cell strengths: how much each
+        Kenyon cell drives APL, and how much APL inhibits each one.
+        """
+        ann = pd.read_feather(ANN).drop_duplicates("bodyId")
+        types = ann["type"].fillna("")
+        apl_ids = [int(b) for b in ann[types.str.contains("APL", na=False)]["bodyId"]]
+        kc_ids = [int(b) for b in ann[types.str.match(r"KC")]["bodyId"]]
+        self.apl = [self.index_of[b] for b in apl_ids if b in self.index_of]
+        self.kc = [self.index_of[b] for b in kc_ids if b in self.index_of]
+
+        weights = pd.read_feather(WEIGHTS,
+                                  columns=["body_pre", "body_post", "weight"])
+        apl_set, kc_set = set(apl_ids), set(kc_ids)
+        to_apl = weights[weights.body_pre.isin(kc_set) & weights.body_post.isin(apl_set)]
+        from_apl = weights[weights.body_pre.isin(apl_set) & weights.body_post.isin(kc_set)]
+        self.kc_drive = to_apl.groupby("body_pre")["weight"].sum().to_dict()
+        self.apl_strength = from_apl.groupby("body_post")["weight"].sum()
+        # Normalise so the gain, not the raw synapse count, sets the scale.
+        self.apl_strength = (self.apl_strength / self.apl_strength.mean()).to_dict()
 
     def show_sequence(self, frames: list[dict[int, float]],
                       ms_per_frame: float = 25.0,
@@ -85,11 +129,15 @@ class BrianFly:
         stim = TimedArray(rates * Hz, dt=ms_per_frame * ms)
 
         defaultclock.dt = 0.1 * ms
-        neu = NeuronGroup(self.n, EQS, method="linear",
-                          threshold="v > v_th", reset="v = v_rst; g = 0 * mV",
-                          refractory="rfc", namespace=PARAMS)
+        params = {**PARAMS, **APL_PARAMS}
+        neu = NeuronGroup(self.n, EQS, method="euler",
+                          threshold="v > v_th",
+                          reset="v = v_rst; g = 0 * mV; trace += 1",
+                          refractory="rfc", namespace=params)
         neu.v = PARAMS["v_0"]
         neu.g = 0 * mV
+        neu.inhib = 0 * mV
+        neu.trace = 0
         neu.rfc = PARAMS["t_rfc"]
         neu.rfc[stim_index] = 0 * ms
 
@@ -104,8 +152,34 @@ class BrianFly:
                         namespace={"w_stim": PARAMS["w_syn"] * PARAMS["f_poi"]})
         feed.connect(i=np.arange(len(stim_ids)), j=stim_index)
 
+        objects = [neu, syn, drive, feed]
+        if self.apl_gain > 0 and self.apl and self.kc:
+            objects += self._graded_apl(neu)
+
         monitor = SpikeMonitor(neu, record=False)
-        net = Network(neu, syn, drive, feed, monitor)
+        net = Network(*objects, monitor)
         net.run(len(frames) * ms_per_frame * ms)
 
         return np.asarray(monitor.count[:], dtype=np.int64)
+
+    def _graded_apl(self, neu):
+        """Replace APL's spiking output with continuous feedback inhibition.
+
+        Kenyon cell activity sums into APL, and APL pushes back on every
+        Kenyon cell in proportion to that total. This is negative feedback,
+        so the more cells fire the harder they are damped, which is what
+        leaves only the most strongly driven ones active.
+        """
+        apl = NeuronGroup(1, "level : 1", namespace={})
+        gather = Synapses(neu, apl, "level_post = w_k * trace_pre : 1 (summed)\n"
+                                    "w_k : 1")
+        gather.connect(i=self.kc, j=0)
+        gather.w_k = [self.kc_drive.get(self.body_ids[i], 0) for i in self.kc]
+        gather.w_k = gather.w_k[:] / max(float(np.mean(gather.w_k[:])), 1e-9) / len(self.kc)
+
+        spread = Synapses(apl, neu, "inhib_post = gain * w_a * level_pre * mV : volt (summed)\n"
+                                    "w_a : 1",
+                          namespace={"gain": self.apl_gain})
+        spread.connect(i=0, j=self.kc)
+        spread.w_a = [self.apl_strength.get(self.body_ids[i], 1.0) for i in self.kc]
+        return [apl, gather, spread]

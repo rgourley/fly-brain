@@ -180,40 +180,41 @@ def short(symbol: str) -> str:
 
 def thought(result: dict, board_size: int, qty: float | None, price: float | None, session: int,
             moved: tuple[str, float] | None = None) -> str:
-    """What the fly posts. Third person, the numbers as they are, under 500 characters."""
+    """The note the fly posts with a session. Plain words, real numbers, under 500 characters."""
+    crypto = any(s.startswith("X:") for s, _ in result["ranking"])
+    things = "coins" if crypto else "stocks"
     lines = []
     for sym, won in result["settled"]:
         cells = result["settled_cells"].get(sym)
         if cells is None:
             continue
-        lines.append(f"{short(sym)} closed {'up' if won else 'down'}: dopamine to the {cells} cells that chose it, "
-                     f"{'reward' if won else 'punishment'} side.")
+        lines.append(f"{short(sym)} closed at a {'profit' if won else 'loss'}, so the {cells} cells that picked it were "
+                     f"{'rewarded' if won else 'punished'}.")
     for sym in result["sold"]:
-        lines.append(f"Selling {short(sym)}: liked it less than at purchase, two sessions running.")
+        lines.append(f"Sold {short(sym)}: liked it less than when it bought, two sessions in a row.")
     order = result["order"]
     ranking = result["ranking"]
     if order:
-        top, second = ranking[0], ranking[1] if len(ranking) > 1 else None
-        head = f"{board_size} on the table. {short(order['symbol'])} smelled best at {order['verdict']:.3f}"
+        second = ranking[1] if len(ranking) > 1 else None
+        head = f"Smelled {board_size} {things}. {short(order['symbol'])} came out best at {order['verdict']:.2f}"
         if second:
-            head += f", {short(second[0])} next at {second[1]:.3f}"
-        head += f": {result['pick_cells']} Kenyon cells, {result['channels']} channels."
+            head += f", {short(second[0])} next at {second[1]:.2f}"
+        close = order["margin"] < 0.36
+        head += ", too close to tell apart." if close else "."
         spend = qty * price if qty and price else order["dollars"]
-        if order["margin"] < 0.36:
-            head += f" Too close to tell apart, so half size: ${spend:,.0f}"
-        else:
-            head += f" Clear of the rest by {order['margin']:.2f}: ${spend:,.0f}"
-        head += f", {qty:g} at ${price:,.2f}." if qty and price else "."
+        amount = f"{qty:g} {short(order['symbol'])}" if crypto else f"{qty:g} shares of {short(order['symbol'])}"
+        head += f" Bought {'half size, ' if close else ''}{amount} at ${price:,.2f}, about ${spend:,.0f}."
+        head += f" {result['pick_cells']} of its 4,064 learning cells fired."
         lines.append(head)
     elif moved:
-        lines.append(f"{board_size} on the table. {short(moved[0])} smelled best, then moved {moved[1]:+.1%} "
-                     f"while the fly was thinking. Not the smell it judged any more, so nothing bought.")
+        lines.append(f"Smelled {board_size} {things}. {short(moved[0])} came out best, then moved {moved[1]:+.1%} "
+                     f"while the fly was thinking, so it bought nothing.")
     else:
-        why = "holds the maximum already" if len(result["held"]) >= MAX_POSITIONS else "nothing on the table it could buy"
-        lines.append(f"{board_size} on the table, nothing bought: {why}.")
-    drift = result["drift"]
-    lines.append(f"Session {session}. Synapses {drift:.3f} from the connectome" +
-                 (", nothing learned yet." if drift == 0 else "."))
+        why = "it already holds the maximum" if len(result["held"]) >= MAX_POSITIONS else "there was nothing new it could buy"
+        lines.append(f"Smelled {board_size} {things} and bought nothing: {why}.")
+    lessons = result.get("lessons", 0)
+    lines.append(f"Session {session}. " + ("No lessons yet: no trade has closed." if lessons == 0
+                                          else f"It has learned from {lessons} closed trade{'s' if lessons != 1 else ''}."))
     text = " ".join(lines)
     return text if len(text) <= 500 else text[:497] + "..."
 

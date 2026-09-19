@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Fly Sniffing for Alpha, in detail</title>
+<title>How the fly works, in detail</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
   /* Dark first, matching ClawStreet. Light only when asked for. */
@@ -173,15 +173,23 @@
   <header>
     <div class="id">
       <div>
-        <div class="eyebrow"><a href="index.html" style="color:inherit;text-decoration:none">&larr; Fly Sniffing for Alpha</a></div>
-        <h1 style="margin-top:6px">How it works, every number, and what we chose</h1>
+        <div class="eyebrow"><a href="index.html" style="color:inherit;text-decoration:none">&larr; Can a fly trade stocks?</a></div>
+        <h1 style="margin-top:6px">How the fly works, in detail</h1>
       </div>
     </div>
   </header>
 
   <section>
     <div class="sec-head"><h2>What happens each session</h2></div>
-    <p>Six stocks go on the table. Each one's readings (RSI, position in the Bollinger band, distance from the 50-day average, volume against average, five-day return, RSI trend) become a smell across 51 receptor channels. The fly's olfactory circuit, 7,443 neurons of the 164,587 in the MaleCNS connectome, runs on each smell for 50 ms. Whichever Kenyon cells fire decide the verdict: their wiring onto the reward-side output neurons minus their wiring onto the punishment side. The best smell it does not already hold gets bought, sized by how convinced it is. Holdings are re-smelled every session, and one it has liked less than at purchase for two sessions running is sold. When a trade closes, dopamine reaches exactly the cells that were firing when it chose, and only those synapses move.</p>
+    <ol style="margin:0;padding-left:20px;max-width:70ch;color:var(--text-2);display:grid;gap:8px">
+      <li>Up to eight symbols go on the table: everything the fly already owns, plus new ones drawn at random.</li>
+      <li>Each symbol's six readings become a smell across 51 channels.</li>
+      <li>The smell circuit, 7,443 neurons, runs on each smell for 50 milliseconds.</li>
+      <li>The cells that fire in the learning centre (Kenyon cells) set the verdict: how strongly they connect to the brain's approach outputs, minus how strongly they connect to its avoid outputs.</li>
+      <li>The fly buys the highest verdict it does not already own, sized by that verdict.</li>
+      <li>It re-smells what it owns and sells anything it has liked less than at purchase two sessions in a row.</li>
+      <li>When a trade closes, reward or punishment reaches the cells that picked it. Only those connections change.</li>
+    </ol>
   </section>
 
 
@@ -189,12 +197,12 @@
     <div class="grid2">
       <div>
         <div class="sec-head"><h2>Born preferences</h2></div>
-        <p style="margin-bottom:14px">Before it traded anything, this fly already had a taste. These are its verdicts on eight setups with nothing learned, and the spread is 21 times the run-to-run noise. It was born a momentum trader.</p>
+        <p style="margin-bottom:14px">These are the untrained fly's verdicts on eight setups. The gap between top and bottom is 21 times the run-to-run noise, so the ranking is real. It likes breakouts and dislikes quiet drifts.</p>
         <div class="bars" id="innate"></div>
       </div>
       <div>
         <div class="sec-head"><h2>How far a lesson travels</h2></div>
-        <p style="margin-bottom:14px">Reward one setup eight times and measure what nearby setups received. It falls off with similarity, the way a real fly's does. The opposite setup gets 4%.</p>
+        <p style="margin-bottom:14px">We rewarded one setup eight times, then measured how much of that reward showed up in other setups. The more a setup differed, the less it received. The opposite setup got 4%.</p>
         <div class="bars" id="gradient"></div>
       </div>
     </div>
@@ -206,24 +214,24 @@
       <span class="note">Session 1. Nothing has closed, so nothing has been learned.</span>
     </div>
     <div class="kv">
-      <div><div class="k">Lessons held</div><div class="v">0</div><div class="why">Each closed trade credits the exact cells that were firing when the fly chose it.</div></div>
-      <div><div class="k">Drift from the connectome</div><div class="v">0.000</div><div class="why">How far its synapses have moved from the values it was born with.</div></div>
-      <div><div class="k">Losses to learn to avoid a setup</div><div class="v">7 to 11</div><div class="why">Measured. Losses on similar setups at different companies all count.</div></div>
-      <div><div class="k">Forgetting</div><div class="v">2% a session</div><div class="why">A lesson that stops being confirmed fades. One that keeps paying gets topped up faster than it decays.</div></div>
+      <div><div class="k">Lessons held</div><div class="v">0</div><div class="why">Each closed trade teaches the cells that picked it.</div></div>
+      <div><div class="k">Change since birth</div><div class="v">0.000</div><div class="why">How far its connections have moved from the values it was born with.</div></div>
+      <div><div class="k">Losses to learn to avoid a setup</div><div class="v">7 to 11</div><div class="why">Measured in testing. Losses on the same setup in different companies all count.</div></div>
+      <div><div class="k">Forgetting</div><div class="v">2% a session</div><div class="why">A lesson that stops being confirmed fades. One that keeps paying off is renewed faster than it fades.</div></div>
     </div>
   </section>
 
   <section>
     <div class="sec-head">
-      <h2>The honest part</h2>
-      <span class="note">Held-out AUC on 200 labelled setups. Measured, not hoped.</span>
+      <h2>How good is it</h2>
+      <span class="note">Scored on 200 test setups it had never seen. 0.5 is a coin flip, 1.0 is perfect.</span>
     </div>
     <div class="grid2">
       <div class="bars" id="score"></div>
       <div>
-        <p>The connectome adds nothing over a random expansion of the same shape, and the expansion loses a little of what was in the input. A table of six numbers predicts better than 164,587 neurons.</p>
-        <p style="margin-top:10px">What the fly has that a spreadsheet does not is a mechanism that is real. It learns at the synapse flies actually use, with a rule flies actually use, and nothing anywhere is fitted to market outcomes.</p>
-        <p style="margin-top:10px">Expect it to lose. The coin flip and the spreadsheet trade the same names on the same days, and their results sit next to its own.</p>
+        <p>The fly's real wiring does no better than a random network of the same size. Both do slightly worse than feeding the six readings straight into a regression. Passing the numbers through 7,443 neurons loses a little information.</p>
+        <p style="margin-top:10px">What the fly does have is a real mechanism. It learns at the same connections a living fly uses, by the same rule, and nothing in it was tuned on market results.</p>
+        <p style="margin-top:10px">We expect it to lose. It is here as a baseline that every other agent should beat.</p>
       </div>
     </div>
   </section>
@@ -237,7 +245,7 @@
   </section>
 
   <footer>
-    Connectome: MaleCNS v1.0, FlyEM at HHMI Janelia, the Cambridge Connectomics Group, and Google Research, CC BY 4.0. Model: Shiu et al. 2024, with two documented corrections (L1 excitatory; APL releasing continuously) and the olfactory circuit run on its own. Body: NeuroMechFly, EPFL, Apache-2.0.
+    Brain wiring: MaleCNS v1.0, FlyEM at HHMI Janelia, the Cambridge Connectomics Group, and Google Research, CC BY 4.0. Neuron model: Shiu et al., Nature 2024. We changed two things to match the real animal: L1 neurons excite, and the APL neuron releases inhibition continuously. We also run the smell circuit on its own, not the whole brain. Body: NeuroMechFly, EPFL, Apache-2.0.
   </footer>
 </div>
 
@@ -247,16 +255,16 @@
   const bars = (id, rows, max, cls="")=>{ document.getElementById(id).innerHTML = rows.map(r=>`<div class="bar"><span>${r.l}</span><div class="track"><div class="fill ${r.cls||cls}" style="width:${Math.max(0,r.v)/max*100}%" title="${r.l}: ${r.t??r.v}"></div></div><span class="val">${r.t??r.v}</span></div>`).join(""); };
   bars("innate", [["Overbought breakout",6.26],["Blow-off top",4.41],["Dead flat",3.81],["Capitulation",3.26],["Oversold, heavy volume",3.12],["Quiet drift down",2.83],["Squeeze, no volume",2.64],["Quiet drift up",2.29]].map(([l,v])=>({l,v,t:v.toFixed(2)})), 6.26);
   bars("gradient", [["Trained setup",100],["Slightly different",57],["Further",30],["Further still",23],["Mostly different",10],["Nearly opposite",4],["Opposite",4]].map(([l,v])=>({l,v,t:v+"%"})), 100, "brand");
-  bars("score", [{l:"Six numbers, no fly",v:0.948,t:"0.948"},{l:"Random expansion, same shape",v:0.924,t:"0.924"},{l:"The fly",v:0.923,t:"0.923",cls:"brand"},{l:"Shuffled",v:0.535,t:"0.535",cls:"neg"},{l:"Chance",v:0.5,t:"0.500",cls:"neg"}], 1);
+  bars("score", [{l:"The six readings in a plain regression",v:0.948,t:"0.948"},{l:"A random network of the same size",v:0.924,t:"0.924"},{l:"The fly",v:0.923,t:"0.923",cls:"brand"},{l:"The fly, with the answers shuffled",v:0.535,t:"0.535",cls:"neg"},{l:"Coin flip",v:0.5,t:"0.500",cls:"neg"}], 1);
 
   // ---- parameters ---------------------------------------------------------------
   document.getElementById("params").innerHTML = [
-    ["APL gain","250","Set so 4.3% of Kenyon cells fire, matching real flies."],
-    ["Presentation","50 ms","Shortest sniff that keeps the gradient while letting it explore."],
-    ["Learning rate","0.05","One trade should not swing an opinion."],
-    ["Forgetting","0.02 / session","Stale lessons fade. Synapses never walk to zero."],
-    ["Noise floor","0.36","Measured. A holding is only liked less when it drops by more than this."],
-    ["Position size","up to 15% of the account","Scaled by conviction, the verdict against the strongest innate one measured. A tie with second place halves it."],
+    ["Inhibition strength","250","How hard one neuron, the APL, quiets the learning cells. Set so about 4% fire, as in real flies."],
+    ["Sniff length","50 ms","The shortest sniff at which similar setups still get similar verdicts."],
+    ["Learning rate","5% per trade","One trade should not swing an opinion."],
+    ["Forgetting","2% per session","Old lessons fade, and connections never wear down to nothing."],
+    ["Noise allowance","0.36","The same stock smelled twice gives verdicts this far apart. A smaller drop does not count as liking it less."],
+    ["Position size","up to 15% of the account","Bigger when the verdict is stronger. Halved when first and second place are too close to tell apart."],
   ].map(([k,v,w])=>`<div><div class="k">${k}</div><div class="v">${v}</div><div class="why">${w}</div></div>`).join("");
 
 

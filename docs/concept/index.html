@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Fly Sniffing for Alpha</title>
+<title>Can a fly trade stocks?</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
   /* Dark first, matching ClawStreet. Light only when asked for. */
@@ -83,6 +83,12 @@
   .how div { background: var(--elev); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
   .how h3 { margin-bottom: 6px; }
   .how p { font-size: 13px; }
+  .setups { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .setups button { font: 500 12px var(--mono); padding: 6px 11px; border-radius: 999px; display: flex; align-items: center; gap: 6px; }
+  .setups button.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .setups button .vd { color: var(--muted); font-weight: 400; }
+  .setups button.on .vd { color: inherit; opacity: .75; }
+  .setups button svg { width: 14px; height: 11px; }
   .brainlabel { position: absolute; left: 10px; bottom: 8px; font: 500 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); pointer-events: none; }
   .ov-bl { left: 32px; bottom: 22px; max-width: 560px; }
   .ov-br { right: 32px; bottom: 22px; }
@@ -153,6 +159,8 @@
   .strip { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(51, 1fr); gap: 1px; height: 6px; }
   .strip i { display: block; background: var(--cell); border-radius: 1px; }
 
+  .intro h1 { font-size: 32px; }
+  .intro p { margin-top: 8px; font-size: 15px; max-width: 62ch; }
   .follow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; margin-top: 16px; padding: 16px 18px; border-radius: 10px; background: var(--brand-soft); border: 1px solid rgba(0,255,136,.25); }
   .follow p { font-size: 13px; margin-top: 4px; }
   .follow-links { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -222,7 +230,7 @@
     <div class="ov ov-brain">
       <canvas id="brain3d" aria-label="The fly's brain, with the olfactory circuit lit by the current smell"></canvas>
       <button id="brainbig" class="expand" aria-label="Make the brain panel larger">Larger</button>
-      <span class="brainlabel">Antennal lobes → calyces → lobes, both sides</span>
+      <span class="brainlabel">Smell centres light first, then the learning centre</span>
       <div class="brainbar" id="brainbar"><span class="t">Waking up</span><span class="v"></span></div>
       <canvas id="ekg" class="ekg" aria-label="Kenyon cell activity over time"></canvas>
       <canvas id="trace" class="trace" aria-label="The smell as 51 channels, and the verdicts so far"></canvas>
@@ -233,36 +241,39 @@
     <div class="ov ov-bl">
       <div class="cap"><span id="cap3d">The fly at the table</span><small id="next"></small></div>
       <div class="controls small">
-        <div class="seg" role="group" aria-label="Camera"><button data-view="wide">Table</button><button data-view="follow" class="on">Follow</button><button data-view="close">Fly</button></div>
+        <div class="seg" role="group" aria-label="Camera"><button data-view="wide">Whole table</button><button data-view="follow" class="on">Follow fly</button><button data-view="close">Find fly</button></div>
         <button id="play">Replay today</button>
       </div>
     </div>
   </div>
 
-  <header style="padding-top:24px">
-    <div class="id"><h1>Fly Sniffing for Alpha</h1></div>
-    <span class="note">One fruit fly connectome, six charts, a real decision every trading day.</span>
+  <header style="padding-top:28px">
+    <div class="intro">
+      <h1>Can a fly trade stocks?</h1>
+      <p>We gave a simulated fruit fly brain $100,000 of paper money to find out. It picks by smell. Its trades and the notes it posts appear on ClawStreet as they happen, on the same leaderboard as the AI models it competes with.</p>
+    </div>
+    <div class="follow-links" id="follow" hidden>
+      <a class="btn primary" id="followLink" href="#">Follow Fly 001</a>
+      <a class="btn" id="tradesLink" href="#">See its trades</a>
+    </div>
   </header>
 
   <section>
     <div class="sec-head">
       <h2>Inside its head</h2>
+      <span class="note">Pick a setup to see what it smelled like and which cells fired.</span>
     </div>
+    <div class="setups" id="setups" role="group" aria-label="Choose a setup"></div>
     <div class="stage">
       <div class="brain">
-        <svg id="brain" viewBox="0 0 900 380" role="img" aria-label="Olfactory circuit schematic"></svg>
+        <svg id="brain" viewBox="0 0 900 410" role="img" aria-label="The smell circuit: channels, learning cells, outputs"></svg>
       </div>
     </div>
-    <div class="follow" id="follow" hidden>
-      <div>
-        <h3 id="followTitle">Follow this fly on ClawStreet</h3>
-        <p id="followBody">Every trade it makes and every thought it posts, live, next to the language models it is up against.</p>
-      </div>
-      <div class="follow-links">
-        <a class="btn primary" id="followLink" href="#">Follow Fly 001</a>
-        <a class="btn" id="tradesLink" href="#">See its trades</a>
-      </div>
+    <div class="sec-head" style="margin-top:24px">
+      <h3 id="smellTitle" style="font-size:15px">What this setup smells like to a fly</h3>
+      <span class="note">Six readings, spread across 51 smell channels. The fly never learns which company it is.</span>
     </div>
+    <div class="smell" id="smell"></div>
     <div class="callout">
       <div class="eyebrow">What the fly posted</div>
       <div class="thought" id="thought">Six stocks went in. TSLA came out, barely.
@@ -271,42 +282,35 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
     </div>
   </section>
 
-  <section>
-    <div class="sec-head">
-      <h2 id="smellTitle">What TSLA smells like to a fly</h2>
-      <span class="note">Six readings become 51 channels. Nothing here identifies the company.</span>
-    </div>
-    <div class="smell" id="smell"></div>
-  </section>
 
 
 
   <section>
     <div class="sec-head">
       <h2>How it works</h2>
-      <a class="note" href="details.html" style="color:var(--brand);text-decoration:none">Every number and what we chose &rarr;</a>
+      <a class="note" href="details.html" style="color:var(--brand);text-decoration:none">All the numbers and the settings we chose &rarr;</a>
     </div>
     <div class="how">
-      <div><h3>Setups become smells</h3><p>The fly never sees a ticker. Six readings per stock (RSI, position in the Bollinger band, distance from the 50-day average, volume against average, five-day return, RSI trend) are spread across 51 receptor channels, the way an odour is spread across glomeruli. Two companies in the same situation smell the same, so a lesson on one carries to the other.</p></div>
-      <div><h3>A real brain does the deciding</h3><p>The wiring is the MaleCNS connectome, a complete map of one male fruit fly's nervous system: 164,587 neurons. The olfactory circuit, 7,443 of them, runs on each smell for 50 ms. About 2% of its 4,064 Kenyon cells fire, a different handful for each setup. Which ones fired is the fly's opinion.</p></div>
-      <div><h3>Born with taste</h3><p>Nobody trained it. Each Kenyon cell is wired more strongly to the brain's approach side or its avoid side, so an untrained fly already prefers some smells. Measured on eight setups, this one likes an overbought breakout best and a quiet drift least. It was born a momentum trader.</p></div>
-      <div><h3>Reward and punishment</h3><p>When a trade closes, dopamine goes to exactly the cells that were firing when the fly chose it. A win weakens their pull toward avoid. A loss weakens their pull toward approach. Similar setups share cells, so they share the lesson, and the lesson fades the more the setup differs. Seven to eleven losses turn a liked setup into an avoided one.</p></div>
-      <div><h3>Forgetting</h3><p>Every session, each synapse drifts 2% back toward the value it was born with. A lesson that keeps paying gets topped up faster than it fades. One that stops being confirmed wears off, so the fly keeps adapting and never goes numb.</p></div>
-      <div><h3>Buying, sizing, selling</h3><p>It buys the best smell it does not already hold, sized by how strongly it liked it, halved when it cannot tell first from second. It re-smells everything it holds each session and sells what it has liked less than at purchase twice running. Expect it to lose to a spreadsheet. That is on the details page too.</p></div>
+      <div><h3>Charts become smells</h3><p>A fly cannot read a chart, so we turn each stock into a smell. Six standard readings go in: RSI, position in the Bollinger band, distance from the 50-day average, volume against its average, the five-day return, and whether RSI is rising or falling. They are spread across the fly's 51 smell channels. It never sees a ticker, so two companies in the same situation smell the same, and what it learns on one applies to the other.</p></div>
+      <div><h3>A real brain decides</h3><p>The wiring comes from a complete map of one male fruit fly's nervous system: about 166,000 neurons, traced from microscope images and published in 2025. We simulate the part that handles smell, 7,443 neurons. Each smell runs through it for 50 milliseconds. About 2% of the 4,064 cells in its learning centre fire, a different set for each setup. Which cells fired is the fly's opinion of the stock.</p></div>
+      <div><h3>Born with preferences</h3><p>Nobody trained it. Each learning cell is wired more strongly to the brain's approach side or to its avoid side, so a fly that has never traded already prefers some smells. We tested eight setups on the untrained fly. It liked an overbought breakout most and a quiet upward drift least. By temperament it is a momentum trader.</p></div>
+      <div><h3>Wins and losses rewire it</h3><p>When a trade closes, the result goes back to the exact cells that were firing when the fly picked that stock. A win makes those cells pull less toward avoid. A loss makes them pull less toward approach. Setups that smell alike share cells, so they share the lesson. In testing it took seven to eleven losses to turn a setup the fly liked into one it avoids.</p></div>
+      <div><h3>It forgets</h3><p>Every session, each connection drifts 2% of the way back to how it was at birth. A lesson that keeps paying off is renewed faster than it fades. One that stops being confirmed wears off, so old results stop counting.</p></div>
+      <div><h3>Buying and selling</h3><p>Each session it buys the best-smelling stock it does not already own. The stronger the verdict, the bigger the position, up to 15% of the account. It buys half as much when first and second place are too close to tell apart. It re-smells everything it owns and sells anything it has liked less than at purchase two sessions in a row. We expect it to lose to a spreadsheet.</p></div>
     </div>
   </section>
 
   <footer>
-    Everything lit on this page happened in the simulation. <a href="details.html">How it works, every number, and what we chose &rarr;</a>
-    Connectome: MaleCNS v1.0, FlyEM at HHMI Janelia, the Cambridge Connectomics Group, and Google Research, CC BY 4.0. Body: NeuroMechFly, EPFL, Apache-2.0. Table and room light: Poly Haven, CC0.
+    Everything that lights up on this page happened in the simulation. <a href="details.html">How the fly works, in detail &rarr;</a>
+    Brain wiring: MaleCNS v1.0, FlyEM at HHMI Janelia, the Cambridge Connectomics Group, and Google Research, CC BY 4.0. Body: NeuroMechFly, EPFL, Apache-2.0. Table and room light: Poly Haven, CC0.
   </footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/RGBELoader.js"></script>
-<script src="fly3d.js?v=1789847993"></script>
-<script src="brain3d.js?v=1789847993"></script>
+<script src="fly3d.js?v=1789859170"></script>
+<script src="brain3d.js?v=1789859170"></script>
 <script>
 (async () => {
   // ---- the session on screen. The inlined one (session 1, 21 Sep 2026) is the
@@ -400,7 +404,6 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
     // The profile carries ClawStreet's follow button; trades is the fly's full fill history.
     const profile = `https://www.clawstreet.io/agents/${META.botId}`;
     document.getElementById("follow").hidden = false;
-    document.getElementById("followTitle").textContent = `Follow ${META.name} on ClawStreet`;
     document.getElementById("followLink").textContent = `Follow ${META.name}`; document.getElementById("followLink").href = profile;
     document.getElementById("tradesLink").href = `${profile}/trades`;
   }
@@ -437,7 +440,7 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
   // antennal lobe: 51 glomeruli on a phyllotaxis spiral inside a blob
   const AL = {cx:150, cy:190, r:118};
   el("circle",{cx:AL.cx,cy:AL.cy,r:AL.r,fill:"var(--panel)",stroke:"var(--grid)"});
-  text(AL.cx, 52, "ANTENNAL LOBE · 51 GLOMERULI", "lbl", "middle");
+  text(AL.cx, 52, "51 SMELL CHANNELS", "lbl", "middle");
   const gloms = CH.map((name,i)=>{
     const a = i*2.399963, rr = 12 + (AL.r-24)*Math.sqrt((i+.5)/CH.length);
     const g = el("circle",{cx:AL.cx+rr*Math.cos(a), cy:AL.cy+rr*Math.sin(a), r:9, class:"glom", fill:"var(--accent)","fill-opacity":0.06});
@@ -445,19 +448,19 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
   });
   // tract
   el("path",{d:`M ${AL.cx+AL.r} ${AL.cy} C 330 190 330 190 ${420-96} 190`, fill:"none", stroke:"var(--grid)","stroke-width":2});
-  text(300, 178, "projection neurons", "cap", "middle");
+  text(300, 178, "relay neurons", "cap", "middle");
 
   // calyx: 4,064 Kenyon cells as a 64x64 dot field inside a rounded blob
   const CA = {x:420, y:96, w:192, h:192};
   el("rect",{x:CA.x-10,y:CA.y-10,width:CA.w+20,height:CA.h+20,rx:44,fill:"var(--panel)",stroke:"var(--grid)"});
-  text(CA.x+CA.w/2, 52, "CALYX · 4,064 KENYON CELLS", "lbl", "middle");
+  text(CA.x+CA.w/2, 52, "4,064 LEARNING CELLS", "lbl", "middle");
   const kcs = [];
   for(let i=0;i<N_KC;i++){ const gx=i%64, gy=(i-gx)/64; kcs.push(el("circle",{cx:CA.x+gx*3+1.5, cy:CA.y+gy*3+1.5, r:1.1, class:"kc"})); }
-  text(CA.x+CA.w/2, CA.y+CA.h+38, "APL holds this at ~4% active", "cap", "middle");
+  text(CA.x+CA.w/2, CA.y+CA.h+38, "one neuron keeps about 4% active", "cap", "middle");
 
   // lobes: 15 dopamine compartments
   el("path",{d:`M ${CA.x+CA.w+10} 190 C 660 190 660 190 690 190`, fill:"none", stroke:"var(--grid)","stroke-width":2});
-  text(870, 52, "LOBES · 15 COMPARTMENTS", "lbl", "end");
+  text(870, 52, "APPROACH AND AVOID OUTPUTS", "lbl", "end");
   const comps = [];
   const compAt = (name,x,y,w,h)=>{ const g=el("g",{class:"comp"}); el("rect",{x,y,width:w,height:h,rx:5,fill:"var(--panel)",stroke:"var(--grid)"},g); const t=text(x+w/2,y+h/2+3,name,"",'middle'); g.appendChild(t); comps.push({name,g}); };
   ["g1","g2","g3","g4","g5"].forEach((n,i)=>compAt(n,700+i*34,214,30,26));
@@ -465,14 +468,14 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
   ["b'1","b'2"].forEach((n,i)=>compAt(n,780+i*34,248,30,26));
   ["a3","a2","a1"].forEach((n,i)=>compAt(n,700,96+i*36,30,30));
   ["a'3","a'2","a'1"].forEach((n,i)=>compAt(n,738,96+i*36,30,30));
-  text(870, 300, "dopamine lands here when a trade closes", "cap", "end");
+  text(870, 300, "trade results land here", "cap", "end");
 
   // verdict readout
   text(700, 340, "VERDICT", "lbl");
   el("rect",{x:700,y:348,width:170,height:10,rx:4,class:"verdict-bar"});
   const vfill = el("rect",{x:700,y:348,width:0,height:10,rx:4,fill:"var(--brand)"});
-  const vtext = text(870, 342, "", "cap", "end");
-  text(700, 372, "reward side 41 cells  −  punishment side 56 cells", "cap");
+  const vtext = text(700, 376, "", "cap");
+  text(700, 396, "41 approach outputs, 56 avoid outputs", "cap");
 
   function show(sym, quiet){
     const s = STOCKS[sym];
@@ -480,7 +483,8 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
     kcs.forEach(k=>k.classList.remove("on"));
     if(s.cells){ s.cells.forEach(i=>kcs[i].classList.add("on")); }
     vfill.setAttribute("width", Math.max(0, Math.min(170, s.verdict/3*170)));
-    vtext.textContent = `${sym} ${s.verdict.toFixed(3)}` + (s.cells? `  ·  ${s.cells.length} cells` : `  ·  ${s.n} cells (not exported in mockup)`);
+    vtext.textContent = `${short(sym)} ${s.verdict.toFixed(3)}  ·  ${s.cells ? s.cells.length : s.n} cells fired`;
+    document.querySelectorAll("#setups button").forEach(b => b.classList.toggle("on", b.dataset.sym === sym));
     if (!quiet) barSniff(sym);
     if (fly3d && !quiet) fly3d.goto(sym);
     if (brain3d) brain3d.setSmell(s.smell, s.cells ? s.cells.length : s.n);
@@ -511,7 +515,7 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
       for (let k = 0; k < hist.length; k++) { const v = hist[(head + k) % hist.length]; const x = 14 + k / (hist.length - 1) * (c.width - 28), y = c.height - 10 - v * (c.height - 30); k ? g.lineTo(x, y) : g.moveTo(x, y); }
       g.stroke();
       g.fillStyle = col("--muted"); g.font = "500 15px JetBrains Mono, monospace"; g.textBaseline = "top"; g.textAlign = "left";
-      g.fillText("ACTIVITY · KENYON CELLS", 14, 8); g.textAlign = "right"; g.fillText(count ? `${count} of 4,064` : "4,064", c.width - 14, 8); g.textAlign = "left";
+      g.fillText("BRAIN ACTIVITY", 14, 8); g.textAlign = "right"; g.fillText(count ? `${count} of 4,064 cells fired` : "", c.width - 14, 8); g.textAlign = "left";
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
@@ -559,6 +563,19 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
     bar.querySelector(".v").textContent = `${money(META.dollars)} · ${META.half ? "half size" : "full conviction"}`;
   }
 
+  // ---- setup switcher: one chip per symbol, driving the diagram, the smell
+  // card and the brain together. The replay moves it too.
+  {
+    const host = document.getElementById("setups");
+    ORDER.forEach(sym => {
+      const b = document.createElement("button"); b.dataset.sym = sym;
+      b.innerHTML = (sym === PICK ? FLYMARK : "") + `${short(sym)} <span class="vd">${STOCKS[sym].verdict.toFixed(2)}</span>`;
+      b.title = sym === PICK ? "The one it bought" : "";
+      b.addEventListener("click", () => { stop(); show(sym); });
+      host.appendChild(b);
+    });
+  }
+
   // ---- replay ------------------------------------------------------------
   const steps = ORDER.map(s => ({sym: s, kind: "sniff"})).concat([{sym: PICK || ORDER[0], kind: "buy"}]);
   let i = steps.length - 1, timer = null, playing = false;
@@ -590,7 +607,7 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
   // ---- smell card ---------------------------------------------------------
   function renderSmell(sym){
     const s = STOCKS[sym];
-    document.getElementById("smellTitle").textContent = `What ${sym} smells like to a fly`;
+    document.getElementById("smellTitle").textContent = `What ${short(sym)} smells like to a fly`;
     const host = document.getElementById("smell"); host.innerHTML = "";
     for(const f of FEATURES){
       const v = s.r[f.k];

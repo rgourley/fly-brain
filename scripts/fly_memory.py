@@ -62,6 +62,7 @@ class FlyMemory:
         self.to_reward = baseline_reward.copy()
         self.to_punish = baseline_punish.copy()
         self.sessions = 0
+        self.lessons = 0        # closed trades it has learned from
         self.positions: list[OpenPosition] = []
         # Sold but not yet told the result. Kept so the outcome can still be
         # credited to the cells that chose the trade when the fill comes back.
@@ -77,6 +78,7 @@ class FlyMemory:
                 self.to_reward = saved["to_reward"]
                 self.to_punish = saved["to_punish"]
                 self.sessions = int(saved["sessions"])
+                self.lessons = int(saved["lessons"]) if "lessons" in saved else 0
         if self.positions_path.exists():
             raw = json.loads(self.positions_path.read_text())
             if isinstance(raw, dict):
@@ -88,7 +90,8 @@ class FlyMemory:
     def save(self) -> None:
         self.home.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(self.state_path, to_reward=self.to_reward,
-                            to_punish=self.to_punish, sessions=self.sessions)
+                            to_punish=self.to_punish, sessions=self.sessions,
+                            lessons=self.lessons)
         self.positions_path.write_text(json.dumps({
             "open": [p.__dict__ for p in self.positions],
             "pending": [p.__dict__ for p in self.pending],
@@ -144,6 +147,7 @@ class FlyMemory:
             for i, p in enumerate(bucket):
                 if p.symbol == symbol:
                     self.learn(p.cells, profitable)
+                    self.lessons += 1
                     return bucket.pop(i)
         return None
 

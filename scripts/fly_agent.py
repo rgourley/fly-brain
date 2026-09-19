@@ -266,6 +266,7 @@ def run_session(board: dict[str, dict], closed: dict[str, bool],
 
     return {
         "session": memory.sessions,
+        "lessons": memory.lessons,
         "fly": fly_id,
         "when": when.isoformat(timespec="minutes"),
         "settled": [(s, p) for s, p in closed.items()],

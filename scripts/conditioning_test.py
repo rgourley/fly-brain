@@ -51,7 +51,7 @@ def patterns(fly: BrianFly, kc_index: list[int]) -> dict[str, np.ndarray]:
     for t in STEPS:
         setup = blend(TRAINED, AWAY, t)
         counts = fly.show_sequence([to_rates(smell(setup), channel_map)],
-                                   ms_per_frame=100.0, seed=77)
+                                   ms_per_frame=50.0, seed=77)
         out[f"{t:.2f}"] = counts[kc_index] > 0
     return out
 

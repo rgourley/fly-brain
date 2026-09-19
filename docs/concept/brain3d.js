@@ -1,10 +1,9 @@
 // The real brain: MaleCNS v1.0 neuropil meshes (FlyEM at HHMI Janelia, Google
 // Research, Cambridge Connectomics Group, CC BY 4.0), decimated for the page
-// by scripts/build_brain_meshes.py. The right antennal lobe's 58 glomeruli,
-// the calyx, the pedunculus and the 15 mushroom body compartments light up
-// from the same replay that drives the schematic. The brain shell is a ghost
-// around them. The file also holds the left-side neuropils and the lateral
-// horn for a fuller view; the panel skips them to keep the circuit readable.
+// by scripts/build_brain_meshes.py. On both sides, the antennal lobe's 58
+// glomeruli, the calyx, the pedunculus and the 15 lobe compartments light up
+// from the same replay that drives the schematic. The lateral horns are drawn
+// dim for orientation; the brain shell is a ghost around them.
 window.Brain3D = function (opts) {
   const {canvas, col, channels} = opts;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -23,17 +22,16 @@ window.Brain3D = function (opts) {
   const brand = new THREE.Color(col("--brand")), accent = new THREE.Color(col("--accent"));
   const parts = {};   // name -> {mesh, group, base}
   const glom = {}, comps = [];
-  let calyx = null, ped = null; const focus = new THREE.Vector3(0, 0, 0);
+  const calyces = [], peds = []; const focus = new THREE.Vector3(0, 0, 0);
   async function load() {
-    const [meta, bin] = await Promise.all([fetch("model/brain/brain.json").then(r => r.json()), fetch("model/brain/brain.bin").then(r => r.arrayBuffer())]);
+    const [meta, bin] = await Promise.all([fetch("model/brain/brain.json?v=1789846451").then(r => r.json()), fetch("model/brain/brain.bin?v=1789846451").then(r => r.arrayBuffer())]);
     for (const m of meta.meshes) {
-      if (m.group === "context") continue;   // the other hemisphere and the lateral horn: in the file, not on the panel
       const pos = new Float32Array(bin, m.offset, m.vertices * 3), idx = new Uint32Array(bin, m.offset + m.vertices * 12, m.triangles * 3);
       const g = new THREE.BufferGeometry();
       g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setIndex(new THREE.BufferAttribute(idx, 1)); g.computeVertexNormals();
       let mat;
       if (m.group === "shell") mat = new THREE.MeshStandardMaterial({color: 0xb8c0d0, transparent: true, opacity: 0.075, depthWrite: false, roughness: 0.9, side: THREE.FrontSide});
-      else if (m.group === "context") mat = new THREE.MeshStandardMaterial({color: 0x3a3a46, transparent: true, opacity: 0.5, roughness: 0.8});
+      else if (m.group === "context") mat = new THREE.MeshStandardMaterial({color: 0x4a4a58, transparent: true, opacity: 0.22, roughness: 0.8});   // the other hemisphere and the lateral horn, dim: the circuit runs there too, the panel lights one side
       else if (m.group === "glomerulus") mat = new THREE.MeshStandardMaterial({color: 0x1a2a40, emissive: accent, emissiveIntensity: 0, roughness: 0.5});
       else mat = new THREE.MeshStandardMaterial({color: 0x1c3226, emissive: brand, emissiveIntensity: 0, roughness: 0.5});
       const mesh = new THREE.Mesh(g, mat); mesh.renderOrder = m.group === "shell" ? 3 : m.group === "context" ? 2 : 1;
@@ -46,9 +44,10 @@ window.Brain3D = function (opts) {
         halo.position.copy(c); halo.scale.setScalar(1.22); halo.renderOrder = 4; group.add(halo); part.halo = halo;
       }
       parts[m.name] = part;
-      if (m.group === "glomerulus") glom[m.name.replace(/^AL-|\(R\)$/g, "")] = part;
+      // Both hemispheres run in the simulation, so a channel lights its glomerulus on both sides.
+      if (m.group === "glomerulus") { const k = m.name.replace(/^AL-|\([RL]\)$/g, ""); (glom[k] = glom[k] || []).push(part); }
       if (m.group === "compartment") comps.push(part);
-      if (m.group === "calyx") calyx = part; if (m.group === "pedunculus") ped = part;
+      if (m.group === "calyx") calyces.push(part); if (m.group === "pedunculus") peds.push(part);
     }
     // Frame the olfactory circuit, not the whole brain.
     const mean = names => { const v = new THREE.Vector3(); const ms = meta.meshes.filter(m => names.includes(m.group)); ms.forEach(m => v.add(new THREE.Vector3(...m.centre))); return v.divideScalar(ms.length); };
@@ -62,11 +61,11 @@ window.Brain3D = function (opts) {
   let wave = 0, cellsLevel = 0, lastSmell = null;
   function setSmell(activations, cells) {
     lastSmell = [activations, cells];
-    for (const k in glom) glom[k].target = 0;
+    for (const k in glom) glom[k].forEach(p => { p.target = 0; });
     for (const ch in activations) {
       const orn = channels[ch]; if (!orn) continue;
       const name = orn.replace(/^ORN_/, "").replace(/^(VM6)[lmv]$/, "$1");
-      if (glom[name]) glom[name].target = Math.max(glom[name].target, activations[ch]);
+      if (glom[name]) glom[name].forEach(p => { p.target = Math.max(p.target, activations[ch]); });
     }
     cellsLevel = Math.min(1, (cells || 0) / 90);
     wave = performance.now();
@@ -88,17 +87,17 @@ window.Brain3D = function (opts) {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (spin && !reduce) yaw += dt * 0.28;
-    const dist = 800 * zoom * Math.max(1, 1.35 / (camera.aspect || 1.35));
+    if (spin && !reduce) yaw += dt * 0.4;
+    const dist = 980 * zoom * Math.max(1, 1.35 / (camera.aspect || 1.35));
     camera.position.set(focus.x + Math.sin(yaw) * Math.cos(pitch) * dist, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(yaw) * Math.cos(pitch) * dist);
     camera.lookAt(focus);
     const since = now - wave;
     const glow = reduce ? 1 : 0.7 + 0.3 * Math.abs(Math.sin(now / 160));
     const lit = (p, v) => { p.mesh.material.emissiveIntensity = v * 2.4; if (p.halo) p.halo.material.opacity = v * 0.45; };
-    for (const k in glom) { const p = glom[k]; p.level += (p.target - p.level) * Math.min(1, dt * 8); lit(p, p.level * glow); }
-    if (calyx) lit(calyx, cellsLevel * pulse(calyx, since, 180, 1400) * glow);
-    if (ped) lit(ped, cellsLevel * pulse(ped, since, 380, 900) * 0.8 * glow);
-    comps.forEach((p, i) => lit(p, cellsLevel * pulse(p, since, 520 + i * 25, 700) * 0.6 * glow));
+    for (const k in glom) glom[k].forEach(p => { p.level += (p.target - p.level) * Math.min(1, dt * 8); lit(p, p.level * glow); });
+    calyces.forEach(p => lit(p, cellsLevel * pulse(p, since, 180, 1400) * glow));
+    peds.forEach(p => lit(p, cellsLevel * pulse(p, since, 380, 900) * 0.8 * glow));
+    comps.forEach((p, i) => lit(p, cellsLevel * pulse(p, since, 520 + (i % 15) * 25, 700) * 0.6 * glow));
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }

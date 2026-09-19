@@ -21,8 +21,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
-STATE = ROOT / "data" / "fly_memory.npz"
-POSITIONS = ROOT / "data" / "fly_positions.json"
+FLIES = ROOT / "data" / "flies"
 
 # Chosen parameters. Declared here because they are not from the connectome.
 LEARNING_RATE = 0.05     # how far one outcome moves the synapses it touches
@@ -52,7 +51,11 @@ class FlyMemory:
     """The fly's learned state, loaded at the start of a session and saved at the end."""
 
     def __init__(self, baseline_reward: np.ndarray, baseline_punish: np.ndarray,
-                 body_ids: list[int]) -> None:
+                 body_ids: list[int], home: Path) -> None:
+        # Each fly keeps its own synapses and positions under data/flies/<id>/.
+        self.home = home
+        self.state_path = home / "memory.npz"
+        self.positions_path = home / "positions.json"
         self.baseline_reward = baseline_reward
         self.baseline_punish = baseline_punish
         self.body_ids = body_ids
@@ -68,14 +71,14 @@ class FlyMemory:
 
     def load(self) -> None:
         """Restore what the fly learned. A fly that forgets nightly never learns."""
-        if STATE.exists():
-            saved = np.load(STATE)
+        if self.state_path.exists():
+            saved = np.load(self.state_path)
             if len(saved["to_reward"]) == len(self.to_reward):
                 self.to_reward = saved["to_reward"]
                 self.to_punish = saved["to_punish"]
                 self.sessions = int(saved["sessions"])
-        if POSITIONS.exists():
-            raw = json.loads(POSITIONS.read_text())
+        if self.positions_path.exists():
+            raw = json.loads(self.positions_path.read_text())
             if isinstance(raw, dict):
                 self.positions = [OpenPosition(**p) for p in raw.get("open", [])]
                 self.pending = [OpenPosition(**p) for p in raw.get("pending", [])]
@@ -83,10 +86,10 @@ class FlyMemory:
                 self.positions = [OpenPosition(**p) for p in raw]
 
     def save(self) -> None:
-        STATE.parent.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(STATE, to_reward=self.to_reward,
+        self.home.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(self.state_path, to_reward=self.to_reward,
                             to_punish=self.to_punish, sessions=self.sessions)
-        POSITIONS.write_text(json.dumps({
+        self.positions_path.write_text(json.dumps({
             "open": [p.__dict__ for p in self.positions],
             "pending": [p.__dict__ for p in self.pending],
         }, indent=1))
@@ -179,7 +182,7 @@ class FlyMemory:
         return float(moved.mean())
 
 
-def from_connectome(kc_body_ids: list[int]) -> FlyMemory:
+def from_connectome(kc_body_ids: list[int], fly: str = "001") -> FlyMemory:
     """Build a fresh, untrained memory from the wiring.
 
     An output neuron's valence is read off which dopamine population drives
@@ -216,4 +219,4 @@ def from_connectome(kc_body_ids: list[int]) -> FlyMemory:
         elif int(row.body_post) in punish_side:
             to_punish[i] += row.weight
     scale = max(to_reward.max(), to_punish.max(), 1.0)
-    return FlyMemory(to_reward / scale, to_punish / scale, kc_body_ids)
+    return FlyMemory(to_reward / scale, to_punish / scale, kc_body_ids, FLIES / fly)

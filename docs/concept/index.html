@@ -68,6 +68,18 @@
   .ov-tl h1 { font-size: 30px; }
   .ov-tl p.mono { font-size: 12px; letter-spacing: .03em; color: var(--text-2); }
   .ov-tl p { margin: 0; }
+  .controls.small { margin-top: 10px; gap: 6px; }
+  .controls.small button { padding: 5px 9px; font-size: 11px; border-radius: 6px; background: rgba(22,22,26,.7); backdrop-filter: blur(6px); }
+  .controls.small .seg button { border-radius: 0; } .controls.small .seg button:first-child { border-radius: 6px 0 0 6px; } .controls.small .seg button:last-child { border-radius: 0 6px 6px 0; }
+  .controls.small .seg button.on { background: var(--brand-soft); }
+  .needs { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(22,22,26,.6); backdrop-filter: blur(6px); font: 500 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .needs span { display: flex; align-items: center; gap: 6px; }
+  .needs i { display: block; width: 58px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.14); overflow: hidden; }
+  .needs b { display: block; height: 100%; width: 0; background: var(--text-2); border-radius: 2px; transition: width .4s linear; }
+  .how { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .how div { background: var(--elev); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .how h3 { margin-bottom: 6px; }
+  .how p { font-size: 13px; }
   .brainlabel { position: absolute; left: 10px; bottom: 8px; font: 500 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); pointer-events: none; }
   .ov-bl { left: 32px; bottom: 22px; max-width: 560px; }
   .ov-br { right: 32px; bottom: 22px; }
@@ -97,8 +109,7 @@
     .hero { height: 62vh; min-height: 420px; }
     .ov-tl { max-width: 60%; padding: 6px 10px; } .ov-tl p { font-size: 11px; }
     .ov-brain { width: min(300px, 62vw); top: 76px; } #brain3d { height: 200px; } .trace { height: 72px; } .brainbar { font-size: 11px; padding: 6px 8px; }
-    .ov-bl { max-width: calc(100% - 48px); bottom: 70px; }
-    .ov-br { left: 24px; right: auto; }
+    .ov-bl { max-width: calc(100% - 48px); }
   }
 
   /* stage */
@@ -201,17 +212,20 @@
     <div class="ov ov-brain">
       <canvas id="brain3d" aria-label="The fly's brain, with the olfactory circuit lit by the current smell"></canvas>
       <button id="brainbig" class="expand" aria-label="Make the brain panel larger">Larger</button>
-      <span class="brainlabel">Right hemisphere · antennal lobe → calyx → lobes</span>
+      <span class="brainlabel">Antennal lobes → calyces → lobes, both sides</span>
       <div class="brainbar" id="brainbar"><span class="t">Waking up</span><span class="v"></span></div>
       <canvas id="ekg" class="ekg" aria-label="Kenyon cell activity over time"></canvas>
       <canvas id="trace" class="trace" aria-label="The smell as 51 channels, and the verdicts so far"></canvas>
+      <div class="needs" id="needs" aria-label="What the fly needs right now">
+        <span>hungry<i><b data-need="hunger"></b></i></span><span>thirsty<i><b data-need="thirst"></b></i></span><span>tired<i><b data-need="tired"></b></i></span>
+      </div>
     </div>
     <div class="ov ov-bl">
       <div class="cap"><span id="cap3d">The fly at the table</span><small id="next"></small></div>
-    </div>
-    <div class="ov ov-br controls">
-      <div class="seg" role="group" aria-label="Camera"><button data-view="wide">Table</button><button data-view="follow" class="on">Follow</button><button data-view="close">Fly</button></div>
-      <button id="play">Replay today</button>
+      <div class="controls small">
+        <div class="seg" role="group" aria-label="Camera"><button data-view="wide">Table</button><button data-view="follow" class="on">Follow</button><button data-view="close">Fly</button></div>
+        <button id="play">Replay today</button>
+      </div>
     </div>
   </div>
 
@@ -247,6 +261,21 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
 
 
 
+  <section>
+    <div class="sec-head">
+      <h2>How it works</h2>
+      <a class="note" href="details.html" style="color:var(--brand);text-decoration:none">Every number and what we chose &rarr;</a>
+    </div>
+    <div class="how">
+      <div><h3>Setups become smells</h3><p>The fly never sees a ticker. Six readings per stock (RSI, position in the Bollinger band, distance from the 50-day average, volume against average, five-day return, RSI trend) are spread across 51 receptor channels, the way an odour is spread across glomeruli. Two companies in the same situation smell the same, so a lesson on one carries to the other.</p></div>
+      <div><h3>A real brain does the deciding</h3><p>The wiring is the MaleCNS connectome, a complete map of one male fruit fly's nervous system: 164,587 neurons. The olfactory circuit, 7,443 of them, runs on each smell for 50 ms. About 2% of its 4,064 Kenyon cells fire, a different handful for each setup. Which ones fired is the fly's opinion.</p></div>
+      <div><h3>Born with taste</h3><p>Nobody trained it. Each Kenyon cell is wired more strongly to the brain's approach side or its avoid side, so an untrained fly already prefers some smells. Measured on eight setups, this one likes an overbought breakout best and a quiet drift least. It was born a momentum trader.</p></div>
+      <div><h3>Reward and punishment</h3><p>When a trade closes, dopamine goes to exactly the cells that were firing when the fly chose it. A win weakens their pull toward avoid. A loss weakens their pull toward approach. Similar setups share cells, so they share the lesson, and the lesson fades the more the setup differs. Seven to eleven losses turn a liked setup into an avoided one.</p></div>
+      <div><h3>Forgetting</h3><p>Every session, each synapse drifts 2% back toward the value it was born with. A lesson that keeps paying gets topped up faster than it fades. One that stops being confirmed wears off, so the fly keeps adapting and never goes numb.</p></div>
+      <div><h3>Buying, sizing, selling</h3><p>It buys the best smell it does not already hold, sized by how strongly it liked it, halved when it cannot tell first from second. It re-smells everything it holds each session and sells what it has liked less than at purchase twice running. Expect it to lose to a spreadsheet. That is on the details page too.</p></div>
+    </div>
+  </section>
+
   <footer>
     Everything lit on this page happened in the simulation. <a href="details.html">How it works, every number, and what we chose &rarr;</a>
     Connectome: MaleCNS v1.0, FlyEM at HHMI Janelia, the Cambridge Connectomics Group, and Google Research, CC BY 4.0. Body: NeuroMechFly, EPFL, Apache-2.0. Table and room light: Poly Haven, CC0.
@@ -256,8 +285,8 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/RGBELoader.js"></script>
-<script src="fly3d.js"></script>
-<script src="brain3d.js"></script>
+<script src="fly3d.js?v=1789846451"></script>
+<script src="brain3d.js?v=1789846451"></script>
 <script>
 (() => {
   // ---- real data from session 1, 21 Sep 2026 ------------------------
@@ -315,6 +344,7 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
     caption: t => { document.getElementById("cap3d").textContent = t; },
     onSniff: sym => { show(sym, true); barSniff(sym); if (bought) barPick(); }}) : null;
   let bought = false;
+  if (fly3d) setInterval(() => { const n = fly3d.needs(); document.querySelectorAll("[data-need]").forEach(b => { b.style.width = Math.round(n[b.dataset.need] * 100) + "%"; }); }, 500);
   // Sessions run once a trading day. Count down to the next one.
   (function tick() {
     const now = new Date(), next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 14, 0, 0));

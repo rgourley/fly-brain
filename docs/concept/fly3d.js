@@ -96,6 +96,15 @@ window.Fly3D = function (opts) {
     return {step(dt, t) { const a = g.attributes.position.array; for (let i = 0; i < n; i++) { const v = vel[i]; a[i * 3] += (v[0] + Math.sin(t * 0.7 + i) * 0.3) * dt; a[i * 3 + 1] += (v[1] + Math.cos(t * 0.5 + i * 1.3) * 0.2) * dt; a[i * 3 + 2] += (v[2] + Math.cos(t * 0.6 + i) * 0.3) * dt; if (a[i * 3 + 1] < 0.1 || a[i * 3 + 1] > 42) a[i * 3 + 1] = rnd(0.2, 40); if (Math.abs(a[i * 3]) > 72) a[i * 3] = -a[i * 3] * 0.98; if (Math.abs(a[i * 3 + 2]) > 46) a[i * 3 + 2] = -a[i * 3 + 2] * 0.98; } g.attributes.position.needsUpdate = true; }};
   })();
 
+  // Water and sugar, the two things a fly on a table goes looking for.
+  const SPOT = {water: new THREE.Vector3(-18, 0, -29), sugar: new THREE.Vector3(18, 0, -29)};
+  {
+    const drop = new THREE.Mesh(new THREE.SphereGeometry(0.9, 32, 20), new THREE.MeshPhysicalMaterial({color: 0xd6ecff, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.5, clearcoat: 1}));
+    drop.scale.set(1, 0.38, 1); drop.position.copy(SPOT.water); drop.position.y = 0.02; scene.add(drop);
+    const crystal = new THREE.MeshStandardMaterial({color: 0xf6f3ec, roughness: 0.35});
+    for (let i = 0; i < 26; i++) { const c = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, 0.11), crystal); c.position.set(SPOT.sugar.x + rnd(-0.6, 0.6), 0.055, SPOT.sugar.z + rnd(-0.6, 0.6)); c.rotation.set(rnd(0, 3), rnd(0, 3), rnd(0, 3)); c.castShadow = true; scene.add(c); }
+  }
+
   // ---- the charts, printed on card --------------------------------------
   function drawChart(sym) {
     const c = document.createElement("canvas"); c.width = 1024; c.height = 614;
@@ -328,14 +337,25 @@ window.Fly3D = function (opts) {
 
   // Off duty, the fly does what flies do: walks somewhere, flies somewhere,
   // stops to groom or rest.
-  let exploring = false;
+  let exploring = false, dwellFeed = false, groomUntil = 0;
+  // Three needs, 0 to 1, that rise with time and effort and choose what the
+  // fly does off duty. Ours, not the connectome's: the brain here only smells.
+  const needs = {hunger: 0.35, thirst: 0.45, tired: 0.2};
+  function goSpot(p, label, need, after) {
+    const q = nearby(p, 0.5); dwellFeed = true; dwellMs = 3200; onDone = () => { needs[need] = 0.08; dwellFeed = false; after(); };
+    if (fly.position.distanceTo(q) > 12) { waypoints = [q]; takeOff(nearby(p, 2)); } else { waypoints = [q]; mode = "walk"; }
+    say(label);
+  }
   const randomSpot = () => new THREE.Vector3(rnd(-TABLE.x, TABLE.x), 0, rnd(-TABLE.z, TABLE.z));
   function explore(steps, done) {
     exploring = true; let left = steps;
     const step = () => {
       if (!exploring) return;
       if (left-- <= 0) { exploring = false; done && done(); return; }
-      const r = Math.random(); onDone = step; act.groom = null;
+      const r = Math.random(); onDone = step; act.groom = null; dwellFeed = false;
+      if (needs.tired > 0.8) { waypoints = []; dwellMs = 6000 + Math.random() * 5000; mode = "walk"; say("Resting"); return; }
+      if (needs.thirst > 0.75) { goSpot(SPOT.water, "Going for water", "thirst", step); return; }
+      if (needs.hunger > 0.75) { goSpot(SPOT.sugar, "Going for sugar", "hunger", step); return; }
       if (held.length && r < 0.14) { const h = held[Math.floor(Math.random() * held.length)]; exploring = false; visit(h, stocks[h].verdict, () => { exploring = true; step(); }, () => onSniff && onSniff(h)); return; }
       if (r < 0.5) { waypoints = [nearby(fly.position, 2.5), nearby(fly.position, 2.5)]; dwellMs = 300 + Math.random() * 500; mode = "walk"; say("Walking"); }
       else if (r < 0.7) { const q = randomSpot(); waypoints = [nearby(q, 1.5)]; dwellMs = 300; takeOff(q); say("Flying"); }
@@ -349,6 +369,14 @@ window.Fly3D = function (opts) {
   const tmp = new THREE.Vector3();
   function step(dt, now) {
     let airborne = false; speedNow = 0;
+    // Needs drift up; flying costs the most, resting pays it back.
+    const still = mode === "dwell" && !act.groom && !act.feeding;
+    needs.hunger = Math.min(1, needs.hunger + dt * 0.006);
+    needs.thirst = Math.min(1, needs.thirst + dt * 0.009);
+    needs.tired = Math.max(0, Math.min(1, needs.tired + dt * (mode === "fly" ? 0.03 : mode === "walk" && waypoints.length ? 0.008 : still ? -0.09 : 0.002)));
+    // Flies clean themselves right after landing, most of the time.
+    if (mode !== "fly" && now < groomUntil) { act.groom = "head"; fly.rotation.y = heading; return false; }
+    if (groomUntil && now >= groomUntil) { groomUntil = 0; act.groom = null; }
     if (mode === "fly") {
       airborne = true;
       flight.s = Math.min(1, flight.s + dt * FLIGHT / flight.len);
@@ -358,10 +386,10 @@ window.Fly3D = function (opts) {
       const ahead = tmp.clone().sub(fly.position);
       fly.position.set(tmp.x, h, tmp.z); speedNow = FLIGHT;
       if (ahead.lengthSq() > 1e-6) heading = Math.atan2(ahead.x, ahead.z);
-      if (s >= 1) { fly.position.y = 0; mode = "walk"; if (dish[current] && !exploring) say(`Sniffing ${current}`); if (onArrive) { const f = onArrive; onArrive = null; f(); } }
+      if (s >= 1) { fly.position.y = 0; mode = "walk"; if (Math.random() < 0.6) groomUntil = now + 1100 + Math.random() * 900; if (dish[current] && !exploring) say(`Sniffing ${current}`); if (onArrive) { const f = onArrive; onArrive = null; f(); } }
     } else if (mode === "walk") {
       const w = waypoints[0];
-      if (!w) { mode = "dwell"; dwellUntil = now + dwellMs; act.feeding = !exploring; act.sniff = !exploring; return false; }
+      if (!w) { mode = "dwell"; dwellUntil = now + dwellMs; act.feeding = !exploring || dwellFeed; act.sniff = !exploring; if (dwellFeed) say(current && false ? "" : (needs.thirst > needs.hunger ? "Drinking" : "Feeding")); return false; }
       const d = w.clone().sub(fly.position); d.y = 0; const dist = d.length();
       if (dist < 0.12) { waypoints.shift(); return false; }
       const want = Math.atan2(d.x, d.z); let diff = want - heading; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
@@ -380,6 +408,7 @@ window.Fly3D = function (opts) {
   }
 
   // ---- camera --------------------------------------------------------------
+  let slideNow = -1;
   let view = "follow", orbit = 0.6, tilt = 0, dragging = null, dragUntil = 0, debugTop = false;
   canvas.addEventListener("pointerdown", e => { dragging = {x: e.clientX, y: e.clientY}; canvas.setPointerCapture(e.pointerId); });
   canvas.addEventListener("pointermove", e => { if (!dragging) return; orbit += (e.clientX - dragging.x) * 0.006; tilt = Math.max(-0.6, Math.min(1.2, tilt - (e.clientY - dragging.y) * 0.004)); dragging = {x: e.clientX, y: e.clientY}; dragUntil = performance.now() + 4000; });
@@ -388,7 +417,7 @@ window.Fly3D = function (opts) {
   function setView(v) { view = v; }
   function updateCamera(dt, moving) {
     // The camera drifts round the fly all the time, faster when it travels.
-    if (!reduce && performance.now() > dragUntil) orbit += dt * (moving ? 0.1 : 0.05);
+    if (!reduce && performance.now() > dragUntil) orbit += dt * (moving ? 0.12 : 0.16);
     const aspect = camera.aspect || 1.6, fit = Math.max(1, 1.6 / aspect);
     if (view === "wide") { const d = 108 * fit; wantPos.set(Math.sin(orbit * 0.2) * d, (62 + tilt * 40) * fit, Math.cos(orbit * 0.2) * d); wantLook.set(0, 0, 0); }
     else {
@@ -402,9 +431,10 @@ window.Fly3D = function (opts) {
     else { wantPos.sub(fly.position); camOff.lerp(wantPos, Math.min(1, dt * 4)); camPos.copy(fly.position).add(camOff); look.copy(wantLook); }
     camera.position.copy(camPos); camera.lookAt(look);
     if (debugTop) { camera.position.set(fly.position.x + 0.001, fly.position.y + 1.1, fly.position.z); camera.lookAt(fly.position); }
-    // On a narrow viewport the brain panel covers the middle, so keep the fly
-    // in the left third of the frame.
-    if (view !== "wide" && canvas.clientWidth < 900) camera.rotateY(-0.28);
+    // The brain panel covers the right of the frame, so the picture is slid
+    // left: a little on a wide window, a lot on a narrow one.
+    const cw = canvas.clientWidth, ch = canvas.clientHeight, slide = view === "wide" ? 0 : cw < 900 ? 0.27 : 0.12;
+    if (slide !== slideNow) { slideNow = slide; if (slide) camera.setViewOffset(cw, ch, cw * slide, 0, cw, ch); else camera.clearViewOffset(); }
   }
 
   const t0 = performance.now(); let last = t0;
@@ -427,7 +457,7 @@ window.Fly3D = function (opts) {
   }
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
-    if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; slideNow = -1; camera.clearViewOffset(); camera.updateProjectionMatrix(); }
   }
   fly.position.set(dish[pick].x + 3, 0, dish[pick].z + 2);
   window.__fly3d = {scene, camera, renderer, fly, top: v => { debugTop = v; }, debug: () => ({mode, view, tilt, orbit, look: look.toArray(), wantLook: wantLook.toArray(), camPos: camPos.toArray(), waypoints: waypoints.length, act: {...act}, exploring, flight: flight && flight.s})};
@@ -442,5 +472,5 @@ window.Fly3D = function (opts) {
     if (act.sniff || act.feeding) return 0.35;
     return 0.08;
   }
-  return {visit, settle, goto, abort, explore, setView, activity, setHeld: h => { held = h.slice(); }, get view() { return view; }};
+  return {visit, settle, goto, abort, explore, setView, activity, needs: () => ({...needs}), setHeld: h => { held = h.slice(); }, get view() { return view; }};
 };

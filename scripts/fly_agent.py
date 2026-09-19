@@ -20,7 +20,7 @@ Market data and orders go through ClawStreet. Everything else is local.
 import json
 import sys
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -31,14 +31,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from fly_smell import load_channel_map, smell, to_rates, describe
 from fly_brian import BrianFly
-from fly_memory import FlyMemory, OpenPosition, from_connectome
+from fly_memory import FlyMemory, OpenPosition, from_connectome, FLIES
 
 PRESENTATION_MS = 50.0
 MAX_POSITIONS = 6
 BOARD_SIZE = 8
-REPLAYS = ROOT / "data" / "replays"
 # Spikes are not dollars. These are ours and they are declared.
-# ClawStreet agents start with $100,000. A position is a share of the
+# ClawStreet agents start with $100,000; the live run passes real equity in. A position is a share of the
 # account set by how convinced the fly is: its verdict against the strongest
 # innate verdict we measured (6.26 for an overbought breakout, untrained).
 # A tie with second place halves it, because the fly could not separate
@@ -60,21 +59,34 @@ class Candidate:
 
 
 class Recorder:
-    """The session as a list of events, in the order they happened."""
+    """The session as a list of events, in the order they happened.
 
-    def __init__(self, day: date) -> None:
-        self.day = day
+    Replays live under data/flies/<id>/replays/, one file per session, named
+    by the minute the session ran. index.json lists them, oldest first, so
+    the page can find the latest without a directory listing.
+    """
+
+    def __init__(self, fly: str, when: datetime) -> None:
+        self.fly = fly
+        self.when = when
         self.events: list[dict] = []
 
     def add(self, kind: str, **fields: object) -> None:
         self.events.append({"step": len(self.events), "type": kind, **fields})
 
     def write(self) -> Path:
-        REPLAYS.mkdir(parents=True, exist_ok=True)
-        path = REPLAYS / f"{self.day.isoformat()}.json"
-        path.write_text(json.dumps({"date": self.day.isoformat(),
-                                    "events": self.events}, indent=1))
-        return path
+        folder = FLIES / self.fly / "replays"
+        folder.mkdir(parents=True, exist_ok=True)
+        name = self.when.strftime("%Y-%m-%dT%H%M") + ".json"
+        (folder / name).write_text(json.dumps({
+            "fly": self.fly, "when": self.when.isoformat(timespec="minutes"),
+            "events": self.events}, indent=1))
+        index = folder / "index.json"
+        listed = json.loads(index.read_text()) if index.exists() else []
+        if name not in listed:
+            listed.append(name)
+        index.write_text(json.dumps(listed))
+        return folder / name
 
 
 def compose_board(held: set[str], universe: list[str], seed: int,
@@ -138,21 +150,38 @@ def size(verdict: float, runner_up: float, account: float = ACCOUNT) -> float:
     return float(round(dollars, 2))
 
 
+def bars_from_history(entry: dict, n: int = 20) -> list[list[float]]:
+    """The last n candles as [open, high, low, close], for the page's cards."""
+    o, h, l, c = (entry.get(k) or [] for k in ("open", "high", "low", "prices"))
+    rows = list(zip(o, h, l, c))[-n:]
+    return [[float(a), float(b), float(d), float(e)] for a, b, d, e in rows]
+
+
 def run_session(board: dict[str, dict], closed: dict[str, bool],
-                dry_run: bool = True, day: date | None = None) -> dict:
+                dry_run: bool = True, day: date | None = None,
+                fly_id: str = "001", when: datetime | None = None,
+                account: float = ACCOUNT) -> dict:
     """One decision. `closed` maps a symbol to whether its trade made money."""
-    day = day or date.today()
-    rec = Recorder(day)
+    when = when or datetime.now(timezone.utc)
+    day = day or when.date()
+    rec = Recorder(fly_id, when)
     fly = BrianFly()
     kc_index, kc_bodies = kenyon_cells(fly)
-    memory = from_connectome(kc_bodies)
+    memory = from_connectome(kc_bodies, fly_id)
     memory.load()
     rec.add("start", session=memory.sessions + 1, held=sorted(memory.held()),
             drift=round(memory.drift(), 5))
+    # Everything the page needs to draw the table comes with the replay.
+    rec.add("board", stocks={sym: {"reading": reading_from_history(e),
+                                   "price": e.get("current_price"),
+                                   "bars": bars_from_history(e)}
+                             for sym, e in board.items()})
 
+    settled_cells: dict[str, int] = {}
     for symbol, profitable in closed.items():
         position = memory.close(symbol, profitable)
         if position:
+            settled_cells[symbol] = len(position.cells)
             rec.add("settle", symbol=symbol, profitable=profitable,
                     cells=len(position.cells), opened=position.opened,
                     compartment="reward" if profitable else "punishment")
@@ -161,7 +190,8 @@ def run_session(board: dict[str, dict], closed: dict[str, bool],
     rec.add("forget", drift=round(memory.drift(), 5))
 
     channel_map = load_channel_map()
-    seed = int(day.strftime("%Y%m%d"))
+    # Brian2 takes a 32-bit seed. The minute of the session, folded to fit.
+    seed = int(when.strftime("%y%m%d%H%M")) % (2**32 - 1000)
     held = memory.held()
     candidates: list[Candidate] = []
     for i, (symbol, entry) in enumerate(board.items()):
@@ -202,7 +232,7 @@ def run_session(board: dict[str, dict], closed: dict[str, bool],
 
     order = None
     if pick and len(memory.held()) < MAX_POSITIONS:
-        dollars = size(pick.verdict, runner_up)
+        dollars = size(pick.verdict, runner_up, account)
         if dollars > 0:
             order = {"symbol": pick.symbol, "dollars": round(dollars, 2),
                      "verdict": round(pick.verdict, 3),
@@ -211,7 +241,7 @@ def run_session(board: dict[str, dict], closed: dict[str, bool],
             if not dry_run:
                 memory.open(OpenPosition(
                     symbol=pick.symbol, opened=day.isoformat(),
-                    qty=0.0, price=0.0,
+                    qty=0.0, price=float(board[pick.symbol].get("current_price") or 0.0),
                     cells=[int(i) for i in np.flatnonzero(pick.cells)],
                     verdict=pick.verdict,
                     smell={k: round(v, 2) for k, v in pick.activations.items()},
@@ -229,6 +259,8 @@ def run_session(board: dict[str, dict], closed: dict[str, bool],
 
     return {
         "session": memory.sessions,
+        "fly": fly_id,
+        "when": when.isoformat(timespec="minutes"),
         "settled": [(s, p) for s, p in closed.items()],
         "ranking": [(c.symbol, round(c.verdict, 3)) for c in candidates],
         "sold": sold,
@@ -237,4 +269,9 @@ def run_session(board: dict[str, dict], closed: dict[str, bool],
         "pending": sorted(p.symbol for p in memory.pending),
         "drift": round(memory.drift(), 5),
         "replay": str(replay) if replay else None,
+        "settled_cells": {s: n for s, n in settled_cells.items()},
+        "pick_cells": int(pick.cells.sum()) if pick else 0,
+        "channels": int(sum(1 for v in pick.activations.values() if v >= 0.5)) if pick else 0,
+        "runner_up": runner_up if pick else None,
+        "positions": [p.__dict__ for p in memory.positions],
     }

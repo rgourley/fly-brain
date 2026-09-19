@@ -5,7 +5,7 @@ HHMI Janelia, Google Research, Cambridge Connectomics Group). The meshes are
 neuroglancer legacy format: uint32 vertex count, float32 xyz per vertex in
 nanometres, uint32 triangle indices.
 
-Each mesh is decimated by vertex clustering to a small triangle budget and
+Both hemispheres are packed, because the simulation runs both. Each mesh is decimated by vertex clustering to a small triangle budget and
 written into one binary file with a JSON manifest. Coordinates are recentred
 on the whole set and scaled to micrometres.
 """
@@ -37,17 +37,12 @@ COMPARTMENTS = ["a'1", "a'2", "a'3", "a1", "a2", "a3", "b'1", "b'2", "b1", "b2",
                 "g1", "g2", "g3", "g4", "g5"]
 
 # (name on the page, dataset, fragment name, triangle budget, group)
-WANT = ([(f"AL-{g}(R)", SUB, f"AL-{g}(R)", 900, "glomerulus") for g in GLOMERULI]
-        + [(f"{c}(R)", SUB, f"{c}(R)", 1500, "compartment") for c in COMPARTMENTS]
-        + [("CA(R)", FULL, "CA(R)", 3000, "calyx"),
-           ("PED(R)", FULL, "PED(R)", 2000, "pedunculus"),
-           ("LH(R)", FULL, "LH(R)", 1500, "context"),
-           ("AL(L)", FULL, "AL(L)", 1500, "context"),
-           ("CA(L)", FULL, "CA(L)", 1500, "context"),
-           ("PED(L)", FULL, "PED(L)", 1000, "context"),
-           ("aL(L)", FULL, "aL(L)", 800, "context"),
-           ("bL(L)", FULL, "bL(L)", 800, "context"),
-           ("gL(L)", FULL, "gL(L)", 800, "context"),
+WANT = ([(f"AL-{g}({side})", SUB, f"AL-{g}({side})", 700, "glomerulus") for side in "RL" for g in GLOMERULI]
+        + [(f"{c}({side})", SUB, f"{c}({side})", 1200, "compartment") for side in "RL" for c in COMPARTMENTS]
+        + [(f"CA({side})", FULL, f"CA({side})", 2500, "calyx") for side in "RL"]
+        + [(f"PED({side})", FULL, f"PED({side})", 1600, "pedunculus") for side in "RL"]
+        + [("LH(R)", FULL, "LH(R)", 1200, "context"),
+           ("LH(L)", FULL, "LH(L)", 1200, "context"),
            ("brain-shell", SHELL, "brain-shell", 12000, "shell")])
 
 

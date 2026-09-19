@@ -319,11 +319,7 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
       const g = c.getContext("2d");
       g.fillStyle = col("--surface"); g.fillRect(0, 0, 512, 320);
       const rows = CANDLES[sym]; const lo = Math.min(...rows.map(r => r[2])), hi = Math.max(...rows.map(r => r[1]));
-      const y = v => 222 - (v - lo) / (hi - lo) * 196, w = 512 / rows.length;
-      g.fillStyle = col("--elev"); g.fillRect(0, 240, 512, 80);
-      g.fillStyle = col("--text"); g.font = "600 58px JetBrains Mono, monospace"; g.textBaseline = "middle"; g.fillText(sym, 22, 281);
-      g.fillStyle = col("--muted"); g.font = "500 26px JetBrains Mono, monospace"; g.textAlign = "right";
-      g.fillText("$" + STOCKS[sym].price.toFixed(2), 494, 281); g.textAlign = "left";
+      const y = v => 300 - (v - lo) / (hi - lo) * 260, w = 512 / rows.length;
       rows.forEach((r, i) => {
         const [o, h, l, cl] = r, x = i * w + w / 2, up = cl >= o;
         g.strokeStyle = g.fillStyle = up ? col("--brand") : col("--neg");
@@ -340,6 +336,14 @@ Bought $0.60 of TSLA. An animal that knows nothing bets nothing.</div>
       const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.6), new THREE.MeshBasicMaterial({map: tex}));
       m.rotation.x = -Math.PI / 2; m.position.set((k % 3 - 1) * 5.4, 0.012, (Math.floor(k / 3) - 0.5) * 4.0);
       scene.add(m); dish[sym] = m.position.clone();
+      const lc = document.createElement("canvas"); lc.width = 512; lc.height = 112;
+      const lg = lc.getContext("2d");
+      lg.fillStyle = col("--text"); lg.font = "600 88px JetBrains Mono, monospace"; lg.textBaseline = "middle"; lg.fillText(sym, 0, 56);
+      lg.fillStyle = col("--muted"); lg.font = "500 40px JetBrains Mono, monospace"; lg.textAlign = "right"; lg.fillText("$" + STOCKS[sym].price.toFixed(2), 512, 60);
+      const lt = new THREE.CanvasTexture(lc); lt.anisotropy = 4;
+      const label = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.57), new THREE.MeshBasicMaterial({map: lt, transparent: true}));
+      label.rotation.x = -Math.PI / 2; label.position.set(m.position.x, 0.013, m.position.z + 1.2);
+      scene.add(label);
     });
 
     const fly = new THREE.Group();

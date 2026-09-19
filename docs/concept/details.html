@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>How the fly works, in detail</title>
+<title>A fruit fly's smell circuit as a trading agent</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
   /* Dark first, matching ClawStreet. Light only when asked for. */
@@ -180,132 +180,139 @@
   <header>
     <div class="intro">
       <div class="eyebrow"><a href="index.html" style="color:inherit;text-decoration:none">&larr; Can a fly trade stocks?</a></div>
-      <h1 style="margin-top:8px">How the fly works, in detail</h1>
-      <p>What we simulated, what we changed, what we measured, and what we ruled out. Every number below comes from a script in the repository, listed at the end.</p>
-      <p class="note" style="margin-top:10px">Rob Gourley, <a href="https://www.clawstreet.io/" style="color:var(--brand);text-decoration:none">ClawStreet</a>. September 2026.</p>
+      <h1 style="margin-top:8px">A fruit fly's smell circuit as a trading agent</h1>
+      <p class="note" style="margin-top:10px">Rob Gourley, <a href="https://www.clawstreet.io/" style="color:var(--brand);text-decoration:none">ClawStreet</a>. September 2026. Technical write-up.</p>
     </div>
   </header>
 
   <section class="paper">
-    <h2>The wiring</h2>
-    <p>The network is the male CNS connectome, MaleCNS v1.0: a complete map of one male <em>Drosophila melanogaster</em> nervous system, traced from electron-microscope images by FlyEM at HHMI Janelia, Google Research and the Cambridge Connectomics Group. The paper reports 166,691 neurons. Our conversion keeps 164,587, the ones with a neurotransmitter prediction and at least one connection.</p>
-    <p>The neuron model is the one in Shiu et al. (Nature, 2024): leaky integrate-and-fire units with the same parameters for every cell. A connection's strength is its synapse count times one fixed weight. Acetylcholine excites; GABA and glutamate inhibit. Every synapse has the same 1.8 ms delay. We run it on Brian2.</p>
-    <p>That uniformity shapes everything that follows. Real synapses differ in strength and timing, and these do not, which decides which of the fly's senses the model can carry and which it cannot.</p>
+    <h2>Summary</h2>
+    <p>We simulate the olfactory learning circuit of <em>Drosophila melanogaster</em>, 7,443 neurons taken from the male CNS connectome, and use it as the decision-maker for paper-trading agents on ClawStreet. A stock's technical state is encoded as an odour across 51 glomerular channels. The Kenyon cells that respond, weighted by their wiring onto reward-side and punishment-side output neurons, give a scalar verdict. The agent buys the highest verdict and sizes by it. Closed trades drive a dopamine-gated depression rule at the Kenyon cell output synapses, with slow recovery toward the connectome's values.</p>
+    <p>Untrained, the circuit ranks eight reference setups with a spread 21 times its trial-to-trial noise. A learned change generalises to similar setups in proportion to shared Kenyon cells, 57% at 35% shared cells and 4% at 1%. The sparse Kenyon cell code retains most of the input information: a linear readout scores 0.923 AUC against 0.948 for the raw inputs on a synthetic three-feature rule. Two flies trade live, one on US equities daily and one on crypto every four hours.</p>
   </section>
 
   <section class="paper">
-    <h2>Why only the smell circuit</h2>
-    <p>Driving one smell channel in the whole-brain model lit 160 of the 4,064 Kenyon cells, the cells of the fly's learning centre. Driving a second, unrelated channel lit 157. The two sets shared 119 cells, 60%. Two smells that overlap that much cannot be told apart, so nothing can be learned about one without teaching the other.</p>
-    <p>The cause is the uniform weights. From a single channel, 2,215 Kenyon cells are reachable within two steps through regions that have nothing to do with smell. In the animal those routes are weak. Here a four-step detour arrives as loud as the direct path. Turning every synapse down does not help, because it weakens the direct path just as much:</p>
+    <h2>1. Data and neuron model</h2>
+    <p>Connectivity is MaleCNS v1.0 (Berg et al., 2025): one complete male central nervous system, 166,691 neurons in the release. Our conversion keeps 164,587, those with a neurotransmitter prediction and at least one synapse. Neurons are leaky integrate-and-fire units with the parameters of Shiu et al. (2024), identical for every cell. A connection's weight is its synapse count times a fixed quantum. Acetylcholine is excitatory; GABA and glutamate are inhibitory. All synaptic delays are 1.8 ms. The simulator is Brian2.</p>
+  </section>
+
+  <section class="paper">
+    <h2>2. The simulated circuit</h2>
+    <p>We simulate the olfactory pathway in isolation: olfactory receptor neurons, the projection neurons that receive from them and project to Kenyon cells, all 4,064 Kenyon cells, the APL neuron, the mushroom body output neurons, and the PAM and PPL1 dopamine neurons. 7,443 neurons in total.</p>
+    <p>Isolation is required for odour discrimination under uniform synaptic weights. In the whole-brain model, 2,215 Kenyon cells are reachable from a single glomerulus within two synapses through unrelated neuropils, and those paths carry as much weight as the direct one. Two unrelated channels then activate overlapping Kenyon cell sets. Reducing the synaptic quantum lowers activity without separating the sets.</p>
     <div class="tbl"><table>
-      <tr><th>Network</th><th class="num">Cells lit, channel A / B</th><th class="num">Shared</th></tr>
+      <tr><th>Network</th><th class="num">Active Kenyon cells, channel A / B</th><th class="num">Shared</th></tr>
       <tr><td>Whole brain</td><td class="num">160 / 157</td><td class="num">60%</td></tr>
-      <tr><td>Whole brain, synapses at 0.15 mV</td><td class="num">57 / 55</td><td class="num">49%</td></tr>
-      <tr><td>Whole brain, synapses at 0.08 mV</td><td class="num">9 / 7</td><td class="num">60%</td></tr>
-      <tr><td>Whole brain, synapses at 0.04 mV</td><td class="num">0 / 0</td><td class="num">network silent</td></tr>
-      <tr><td>Smell circuit only</td><td class="num">12 / 17</td><td class="num">0%</td></tr>
+      <tr><td>Whole brain, quantum reduced to 0.15 mV</td><td class="num">57 / 55</td><td class="num">49%</td></tr>
+      <tr><td>Olfactory circuit only</td><td class="num">12 / 17</td><td class="num">0%</td></tr>
     </table></div>
-    <p>So the flies run the smell circuit alone, 7,443 neurons: the receptor neurons, the relay neurons that take their input and pass it to Kenyon cells, the Kenyon cells, the APL neuron, the mushroom body output neurons, and the PAM and PPL1 dopamine neurons. Everything else is left out.</p>
   </section>
 
   <section class="paper">
-    <h2>One change to the published model</h2>
-    <p>The APL is a single large neuron that receives from all the Kenyon cells and inhibits all of them. In the real fly it does not fire spikes. It releases inhibition continuously, in proportion to how active the Kenyon cells are. As a spiking unit in the published model it fired at 363 Hz and suppressed almost nothing, so every smell lit a large, overlapping set of cells.</p>
-    <p>We replaced it with a graded version: Kenyon cell activity feeds a running level, and that level is subtracted from every Kenyon cell's drive. With the gain set to 250 on the smell circuit, 2 to 4% of Kenyon cells fire per smell. Recordings from real flies put it near 5%. The gain is ours, chosen to land in that range.</p>
-    <p>A second correction is in the converter for completeness, though the smell circuit does not use it: L1 neurons in the optic lobe are forced excitatory. L1 is glutamatergic, which the blanket rule makes inhibitory, but it excites its main target. Left alone it delivers 142,185 inhibitory synapses to Mi1 and silences the whole motion pathway.</p>
+    <h2>3. Graded inhibition from APL</h2>
+    <p>APL receives from all Kenyon cells and inhibits all of them. In the animal it is non-spiking and releases GABA in proportion to Kenyon cell activity. As a spiking unit it fires at 363 Hz and produces little net inhibition. We model it as a graded feedback term: a low-pass trace of Kenyon cell spiking, scaled by a gain, subtracted from every Kenyon cell's input. With gain 250, 2 to 4% of Kenyon cells respond to an odour, against roughly 5% in recordings. The gain is a free parameter set to reach that range.</p>
+    <p>The converter also forces L1 lamina neurons excitatory. L1 is glutamatergic but excites Mi1; under the blanket sign rule it contributes 142,185 inhibitory synapses and silences the ON motion pathway. This does not affect the olfactory circuit and is recorded for anyone using the converted files for vision.</p>
   </section>
 
   <section class="paper">
-    <h2>From six indicators to a smell</h2>
-    <p>Each symbol gives six readings from ClawStreet's market data: RSI, position in the Bollinger band, distance from the 50-day average, volume against its average, the five-day return, and whether RSI is rising, falling or flat. Each numeric reading is spread over eight overlapping bands, Gaussian, with a width of 0.75 band spacings, so a value activates its nearest band fully and its neighbours partly. The trend takes three on-off channels. News sentiment and days to earnings have channels too and are dark for now. That is 51 channels.</p>
-    <p>Each channel is assigned to one of the fly's glomeruli, the units of its smell map, in sorted order. The assignment is arbitrary. RSI has no natural glomerulus. What matters is that it is fixed, so the same setup always produces the same smell. A channel at full strength drives that glomerulus's receptor neurons with 100 Hz Poisson input. The circuit runs for 50 ms per symbol.</p>
+    <h2>4. Stimulus encoding</h2>
+    <p>Each symbol supplies six readings from ClawStreet's market data: RSI(14), position within the Bollinger band, fractional distance from the 50-day average, volume relative to its average, five-day return, and RSI trend. Each numeric reading <code>x</code> is encoded over eight bands with centres <code>c<sub>k</sub></code> spaced <code>&Delta;</code> apart:</p>
+    <p><code>a<sub>k</sub> = exp(&minus;((x &minus; c<sub>k</sub>) / 0.75&Delta;)<sup>2</sup>)</code>, normalised so the strongest band is 1.</p>
+    <p>Band ranges are RSI 15 to 85, Bollinger position 0 to 1, distance from the average &minus;20% to +20%, volume ratio 0.5 to 3 on a log scale, and five-day return &minus;15% to +15%. RSI trend uses three binary channels. Seven further channels are reserved for news sentiment and days to earnings and are currently silent. Total: 51 channels.</p>
+    <p>Channels map to glomeruli in sorted order of glomerulus name. The mapping carries no meaning beyond being fixed. A channel with activation <code>a</code> drives every receptor neuron of its glomerulus with Poisson input at <code>100a</code> Hz. Each symbol is presented for 50 ms from rest. The ticker is never encoded, so identical technical states produce identical odours across symbols.</p>
   </section>
 
   <section class="paper">
-    <h2>The verdict</h2>
-    <p>Kenyon cells connect to 97 output neurons. We sort those by their own wiring, not by hand: an output neuron that gets more input from the PAM dopamine cluster is on the reward side, one that gets more from PPL1 is on the punishment side. That gives 41 and 56. For each Kenyon cell we add up its synapses onto each side. The verdict for a smell is the reward-side total minus the punishment-side total, over the cells that fired.</p>
-    <div class="grid2" style="margin-top:20px">
+    <h2>5. Decision variable</h2>
+    <p>The 97 mushroom body output neurons are split by their own dopaminergic input: more synapses from PAM than PPL1 places a neuron on the reward side, the reverse on the punishment side. This yields 41 and 56. For Kenyon cell <code>i</code>, <code>r<sub>i</sub></code> and <code>p<sub>i</sub></code> are its summed synapse counts onto each side, scaled to a common maximum of 1. For the set <code>C</code> of Kenyon cells that spike during a presentation:</p>
+    <p><code>verdict = &Sigma;<sub>i&isin;C</sub> (r<sub>i</sub> &minus; p<sub>i</sub>)</code></p>
+  </section>
+
+  <section class="paper">
+    <h2>6. Plasticity</h2>
+    <p>The set <code>C</code> is stored with each position when it is opened. When the position closes, the outcome updates only those cells:</p>
+    <p><code>profit: p<sub>i</sub> &larr; 0.95 p<sub>i</sub> &nbsp;&nbsp; loss: r<sub>i</sub> &larr; 0.95 r<sub>i</sub> &nbsp;&nbsp; for i &isin; C</code></p>
+    <p>Both updates are depression, as at the real Kenyon cell to output neuron synapse, where dopamine from one compartment weakens the opposing drive. Every session all weights recover toward their connectome values <code>w<sub>0</sub></code>:</p>
+    <p><code>w &larr; w + 0.02 (w<sub>0</sub> &minus; w)</code></p>
+    <p>Recovery bounds the weights away from zero and makes unconfirmed lessons decay.</p>
+  </section>
+
+  <section class="paper">
+    <h2>7. Trading loop</h2>
+    <p>A session presents up to eight symbols: current holdings plus symbols drawn at random from the universe, seeded by the session minute. Closed positions are settled first, then weights recover, then each symbol is presented and scored. The agent buys the highest-verdict symbol it does not hold, to a maximum of six positions.</p>
+    <p>Position size is <code>equity &times; 0.15 &times; min(1, verdict / 6.0)</code>, halved when the margin over the next eligible symbol is below 0.36. The pick is re-quoted immediately before the order and the quantity is computed from that quote. If the price moved more than 1.5% (equities) or 3% (crypto) during the 14 to 21 seconds the simulation takes, no order is sent.</p>
+    <p>A holding is sold when its verdict has been more than 0.36 below its purchase verdict for two consecutive sessions. 0.36 is the measured range of the verdict across repeated presentations of an unchanged state; a real change in state moves it by about 0.95. The rule exits positions whose state has become one the circuit rates lower. It is not a drawdown control, and none is applied.</p>
+  </section>
+
+  <section class="paper">
+    <h2>8. Results</h2>
+    <div class="grid2" style="margin-top:8px">
       <div>
-        <h3 style="margin-bottom:10px">What it prefers untrained</h3>
-        <p style="margin-bottom:14px">Eight setups, four runs each. The spread between best and worst is 3.97 and the run-to-run noise is 0.19, so the ranking is 21 times the noise.</p>
+        <h3 style="margin-bottom:10px">Innate ranking</h3>
+        <p style="margin-bottom:14px">Verdicts of the untrained circuit on eight reference setups, four trials each. Range 3.97, mean trial-to-trial s.d. 0.19.</p>
         <div class="bars" id="innate"></div>
       </div>
       <div>
-        <h3 style="margin-bottom:10px">How far a lesson travels</h3>
-        <p style="margin-bottom:14px">One setup rewarded eight times, then the shift in verdict measured on setups at increasing distance. A setup sharing 35% of the trained cells received 57% of the shift. The opposite setup received 4%.</p>
+        <h3 style="margin-bottom:10px">Generalisation of a learned change</h3>
+        <p style="margin-bottom:14px">One setup rewarded eight times. Shift in verdict on setups at increasing distance, as a share of the trained setup's shift. Shared Kenyon cells fall from 35% to 1% across the same range. Punishment gives the same gradient.</p>
         <div class="bars" id="gradient"></div>
       </div>
     </div>
-  </section>
-
-  <section class="paper">
-    <h2>Learning, forgetting, selling</h2>
-    <p>When a trade closes, the rule touches only the Kenyon cells that were firing when the fly chose it. After a profit, those cells' punishment-side weights are multiplied by 0.95. After a loss, their reward-side weights are. Both changes are depression, which is how the real synapse learns, so without anything else the weights would wear down to zero. Forgetting prevents that: every session each weight moves 2% of the way back to its starting value.</p>
+    <h3 style="margin:28px 0 10px">Trials to aversion</h3>
+    <p>Consecutive losses needed to turn a positive verdict negative, at learning rate 0.05.</p>
     <div class="tbl"><table>
-      <tr><th>Setup</th><th class="num">Starting verdict</th><th class="num">Losses until avoided</th><th class="num">With forgetting</th></tr>
+      <tr><th>Setup</th><th class="num">Initial verdict</th><th class="num">Losses</th><th class="num">With recovery at 0.02</th></tr>
       <tr><td>Dead flat</td><td class="num">+3.51</td><td class="num">7</td><td class="num">8</td></tr>
       <tr><td>Overbought breakout</td><td class="num">+6.42</td><td class="num">9</td><td class="num">10</td></tr>
       <tr><td>Oversold, heavy volume, near lows</td><td class="num">+2.35</td><td class="num">10</td><td class="num">11</td></tr>
     </table></div>
-    <p>The sell rule compares today's verdict on a holding with the verdict at purchase. The same stock smelled on different days with unchanged readings gives verdicts up to 0.36 apart, from the Poisson input alone. A real change in the setup moves it by about 0.95. So a holding counts as liked less only when it drops by more than 0.36, and it is sold after two sessions in a row of that.</p>
-    <p>This does not behave like a stop loss. A position bought oversold and then recovering gets a higher verdict, because the untrained fly prefers breakouts. The rule fires when a holding goes quiet. Any drawdown limit would be a rule of ours, and there is none at present.</p>
-  </section>
-
-  <section class="paper">
-    <h2>How much of the smell survives</h2>
-    <p>Before letting the fly's cells make a decision, we checked that they keep what was in the readings. We generated 200 synthetic setups and labelled each with a rule the fly is never shown: at least two of RSI under 45, volume above 1.3 times average, and Bollinger position under 0.4. A logistic regression then tries to recover the label from which cells fired, scored by area under the ROC curve with five-fold cross-validation. 0.5 is a coin flip and 1.0 is perfect.</p>
+    <h3 style="margin:28px 0 10px">Information retained by the Kenyon cell code</h3>
+    <p>200 synthetic setups with readings drawn independently, labelled positive when at least two of three conditions hold: RSI below 45, volume ratio above 1.3, Bollinger position below 0.4. 46 positive, 154 negative. A logistic regression (C = 0.05, standardised inputs) predicts the label from the binary Kenyon cell response, scored by ROC AUC under five-fold stratified cross-validation. This measures what the representation preserves. It is not a test on market outcomes, and logistic regression is a stronger learner than the rule in section 6.</p>
     <div class="bars" id="score" style="max-width:720px;margin:16px 0"></div>
-    <p>The fly's cells score 0.923 &plusmn; 0.049 against 0.948 &plusmn; 0.044 for the raw readings. About 2% of the cells firing carries nearly all of the signal, including a rule that needs three readings in combination. A random sparse network of the same size scores 0.924 &plusmn; 0.024, the same as the fly. That agrees with the standard account of the mushroom body: a random expansion whose job is to keep smells apart so that each can be learned about separately.</p>
-    <p>The test uses a made-up rule, so it says nothing about markets. The live accounts do that.</p>
+    <p>Connectome wiring 0.923 &plusmn; 0.049; random sparse expansion at matched size and sparseness 0.924 &plusmn; 0.024; raw inputs 0.948 &plusmn; 0.044; shuffled control 0.535 &plusmn; 0.101. The code preserves a three-way conjunction at 2.2% activity. The match between connectome and random expansion is the expected result for the mushroom body calyx, where projection neuron to Kenyon cell connectivity is close to random.</p>
   </section>
 
   <section class="paper">
-    <h2>Why smell, and not sight or movement</h2>
-    <p>We tested four other ways for the fly to choose before settling on smell. Each is ruled out by a specific property of the model, which is useful to know before anyone tries it again.</p>
-    <div class="tbl"><table>
-      <tr><th>Idea</th><th>Result</th></tr>
-      <tr><td>Steer toward an odour by which side it is on</td><td>Olfactory neurons send 51.9% of their output to each hemisphere, so the side is lost at the first synapse. Wind-sensing neurons keep 91.4% on their own side and do steer.</td></tr>
-      <tr><td>Tell a rising smell from a falling one</td><td>At the same concentration the two differed by 0.5% in spikes. The units have no adaptation, so the network carries no history.</td></tr>
-      <tr><td>Detect motion in a moving chart</td><td>6,793 motion detectors placed over eight chart regions produced two spikes between them. Direction selectivity comes from differences in synaptic delay, and every delay here is 1.8 ms.</td></tr>
-      <tr><td>Read the shape of a chart by sight</td><td>Object-detecting neurons responded to a rising and a falling chart with a correlation of 0.990. The response tracks how much is drawn, not what.</td></tr>
-      <tr><td>Feed vision into the learning centre</td><td>Visual input is 0.53% of what Kenyon cells receive in this connectome.</td></tr>
-    </table></div>
-  </section>
-
-  <section class="paper">
-    <h2>Numbers we chose</h2>
-    <p style="margin-bottom:16px">These are not in the connectome. They are decisions.</p>
+    <h2>9. Parameters</h2>
+    <p style="margin-bottom:16px">Values set by us. Everything else is read from the connectome.</p>
     <div class="kv" id="params"></div>
   </section>
 
   <section class="paper">
-    <h2>What is animation</h2>
-    <p>On the main page, the brain panel, the diagram, the smell bars and the verdicts are the session as it ran. Where the fly walks, when it grooms, its hunger and thirst, and the baseline of the activity trace are animation. The simulation only smells.</p>
+    <h2>10. Scope</h2>
+    <p>The model's uniform weights, uniform delays and lack of adaptation limit which modalities it can carry, and these determined the choice of olfaction. Bilateral projection sends 51.9% of olfactory output to each hemisphere, so odour side is not available for steering; wind-sensitive neurons retain 91.4% ipsilaterally. Responses to rising and falling odour at matched concentration differ by 0.5%, so temporal change is not encoded. Direction-selective T4 and T5 cells are silent under motion, since direction selectivity depends on delay differences. Object-detecting visual neurons respond to rising and falling charts with correlation 0.990, and visual input is 0.53% of Kenyon cell input. Static odour identity is what this model represents well.</p>
+    <p>On the main page, brain activity, odours and verdicts are replayed from recorded sessions. The fly's locomotion, grooming and internal-state bars are animation.</p>
   </section>
 
   <section class="paper">
-    <h2>Reproducing the numbers</h2>
-    <p>All scripts are in <code>scripts/</code>; each writes its output to <code>data/results/</code>. They need the MaleCNS v1.0 tables, which <code>convert_malecns.py</code> turns into the two files the model reads.</p>
+    <h2>Reproduction</h2>
+    <p>Scripts are in <code>scripts/</code> and write to <code>data/results/</code>. <code>convert_malecns.py</code> builds the model's input files from the MaleCNS v1.0 tables.</p>
     <div class="tbl"><table>
-      <tr><th>Number</th><th>Script</th><th>Saved output</th></tr>
-      <tr><td>60% and 0% overlap, the synapse-strength table</td><td><code>fly_brian.py</code>, whole brain against <code>olfactory_only=True</code></td><td><code>compare.log</code>, <code>kcdiag.log</code></td></tr>
-      <tr><td>Kenyon cells active against APL gain</td><td><code>fly_brian.py</code> with a range of <code>apl_gain</code></td><td><code>apl_sweep.log</code>, <code>apl_sweep2.log</code></td></tr>
-      <tr><td>Untrained preferences, 21 times the noise</td><td><code>innate_test.py</code></td><td><code>innate.log</code></td></tr>
-      <tr><td>Lesson against distance, reward and punishment</td><td><code>conditioning_test.py</code> at 50 ms</td><td><code>conditioning50.log</code></td></tr>
-      <tr><td>Losses until a setup is avoided</td><td><code>aversion_test.py</code></td><td><code>aversion.log</code></td></tr>
-      <tr><td>0.36 noise and 0.95 real change</td><td><code>exit_test.py</code></td><td>printed, not saved</td></tr>
-      <tr><td>0.923, 0.924, 0.948, 0.535</td><td><code>learning_test.py</code>, seed fixed</td><td><code>learning_test2.log</code></td></tr>
-      <tr><td>Rising against falling smell, 0.5%</td><td><code>ramp_test.py</code></td><td><code>ramp_test.log</code></td></tr>
-      <tr><td>Motion detectors silent</td><td><code>motion_test.py</code></td><td><code>motion_test.log</code></td></tr>
-      <tr><td>Rising and falling chart, 0.990</td><td><code>chart_test.py</code></td><td><code>chart_test.log</code></td></tr>
-      <tr><td>51.9%, 91.4%, 0.53%, 142,185, 363 Hz</td><td>computed from the wiring tables during <code>lateral_test.py</code>, <code>wind_test.py</code>, <code>vision_gate.py</code> and the APL work</td><td>printed, not saved. Re-run before quoting.</td></tr>
+      <tr><th>Result</th><th>Script</th><th>Saved output</th></tr>
+      <tr><td>Kenyon cell overlap, whole brain and circuit</td><td><code>fly_brian.py</code>, <code>olfactory_only</code> on and off</td><td><code>compare.log</code>, <code>kcdiag.log</code></td></tr>
+      <tr><td>Kenyon cell activity against APL gain</td><td><code>fly_brian.py</code>, range of <code>apl_gain</code></td><td><code>apl_sweep.log</code>, <code>apl_sweep2.log</code></td></tr>
+      <tr><td>Innate ranking</td><td><code>innate_test.py</code></td><td><code>innate.log</code></td></tr>
+      <tr><td>Generalisation gradient</td><td><code>conditioning_test.py</code>, 50 ms</td><td><code>conditioning50.log</code></td></tr>
+      <tr><td>Trials to aversion</td><td><code>aversion_test.py</code></td><td><code>aversion.log</code></td></tr>
+      <tr><td>Verdict noise 0.36, state change 0.95</td><td><code>exit_test.py</code></td><td>printed, not saved</td></tr>
+      <tr><td>Information retained</td><td><code>learning_test.py</code>, fixed seed</td><td><code>learning_test2.log</code></td></tr>
+      <tr><td>Rising against falling odour</td><td><code>ramp_test.py</code></td><td><code>ramp_test.log</code></td></tr>
+      <tr><td>Motion response</td><td><code>motion_test.py</code></td><td><code>motion_test.log</code></td></tr>
+      <tr><td>Chart shape response</td><td><code>chart_test.py</code></td><td><code>chart_test.log</code></td></tr>
+      <tr><td>51.9%, 91.4%, 0.53%, 142,185, 363 Hz</td><td>from the wiring tables in <code>lateral_test.py</code>, <code>wind_test.py</code>, <code>vision_gate.py</code> and the APL runs</td><td>printed, not saved; re-run before citing</td></tr>
     </table></div>
-    <p>The live flies run <code>fly_live.py</code>, which calls <code>fly_agent.run_session</code>. Each session writes a replay with every smell, the cells that fired and the verdicts, which is what the main page plays back.</p>
+    <p>Live sessions run <code>fly_live.py</code>, which calls <code>fly_agent.run_session</code> and writes a replay of every presentation, response and verdict.</p>
+  </section>
+
+  <section class="paper">
+    <h2>References</h2>
+    <p>Berg S. et al. Sexual dimorphism in the complete connectome of the <em>Drosophila</em> male central nervous system. 2025. <a href="https://www.biorxiv.org/content/10.1101/2025.10.09.680999v1">bioRxiv 2025.10.09.680999</a>. Data: <a href="https://male-cns.janelia.org/">male-cns.janelia.org</a>, CC BY 4.0.</p>
+    <p>Shiu P. K. et al. A <em>Drosophila</em> computational brain model reveals sensorimotor processing. <a href="https://www.nature.com/articles/s41586-024-07763-9">Nature 634, 210&ndash;219 (2024)</a>.</p>
+    <p>Stimberg M., Brette R., Goodman D. F. M. Brian 2, an intuitive and efficient neural simulator. eLife 8, e47314 (2019).</p>
   </section>
 
   <footer>
-    Rob Gourley built this at <a href="https://www.clawstreet.io/">ClawStreet</a>: turning indicators into smells, the verdict and learning rules, the experiments on this page, and the agents that trade. The brain wiring and the neuron model are the work of the groups below.
-    Brain wiring: <a href="https://male-cns.janelia.org/">MaleCNS v1.0</a>, FlyEM at HHMI Janelia, the Cambridge Connectomics Group and Google Research, CC BY 4.0 (<a href="https://www.biorxiv.org/content/10.1101/2025.10.09.680999v1">Berg et al., 2025</a>). Neuron model: <a href="https://www.nature.com/articles/s41586-024-07763-9">Shiu et al., Nature 634, 210 (2024)</a>. Simulator: Brian2. Body on the main page: NeuroMechFly, EPFL, Apache-2.0.
+    Rob Gourley built this at <a href="https://www.clawstreet.io/">ClawStreet</a>: the odour encoding, the decision variable, the plasticity and trading rules, the experiments on this page, and the agents that trade. The connectome and the neuron model are the work of the groups cited above. The fly body on the main page is NeuroMechFly, EPFL, Apache-2.0.
   </footer>
 </div>
 
@@ -315,16 +322,16 @@
   const bars = (id, rows, max, cls="")=>{ document.getElementById(id).innerHTML = rows.map(r=>`<div class="bar"><span>${r.l}</span><div class="track"><div class="fill ${r.cls||cls}" style="width:${Math.max(0,r.v)/max*100}%" title="${r.l}: ${r.t??r.v}"></div></div><span class="val">${r.t??r.v}</span></div>`).join(""); };
   bars("innate", [["Overbought breakout",6.26],["Blow-off top",4.41],["Dead flat",3.81],["Capitulation",3.26],["Oversold, heavy volume",3.12],["Quiet drift down",2.83],["Squeeze, no volume",2.64],["Quiet drift up",2.29]].map(([l,v])=>({l,v,t:v.toFixed(2)})), 6.26);
   bars("gradient", [["Trained setup",100],["Slightly different",57],["Further",30],["Further still",23],["Mostly different",10],["Nearly opposite",4],["Opposite",4]].map(([l,v])=>({l,v,t:v+"%"})), 100, "brand");
-  bars("score", [{l:"The six readings in a plain regression",v:0.948,t:"0.948"},{l:"A random network of the same size",v:0.924,t:"0.924"},{l:"The fly",v:0.923,t:"0.923",cls:"brand"},{l:"The fly, with the answers shuffled",v:0.535,t:"0.535",cls:"neg"},{l:"Coin flip",v:0.5,t:"0.500",cls:"neg"}], 1);
+  bars("score", [{l:"Raw inputs",v:0.948,t:"0.948"},{l:"Random sparse expansion",v:0.924,t:"0.924"},{l:"Connectome wiring",v:0.923,t:"0.923",cls:"brand"},{l:"Shuffled control",v:0.535,t:"0.535",cls:"neg"},{l:"Chance",v:0.5,t:"0.500",cls:"neg"}], 1);
 
   // ---- parameters ---------------------------------------------------------------
   document.getElementById("params").innerHTML = [
-    ["Inhibition strength","250","How hard one neuron, the APL, quiets the learning cells. Set so about 4% fire, as in real flies."],
-    ["Sniff length","50 ms","The shortest sniff at which similar setups still get similar verdicts."],
-    ["Learning rate","5% per trade","One trade should not swing an opinion."],
-    ["Forgetting","2% per session","Old lessons fade, and connections never wear down to nothing."],
-    ["Noise allowance","0.36","The same stock smelled twice gives verdicts this far apart. A smaller drop does not count as liking it less."],
-    ["Position size","up to 15% of the account","Bigger when the verdict is stronger. Halved when first and second place are too close to tell apart."],
+    ["APL gain","250","Sets Kenyon cell sparseness to 2 to 4% per odour."],
+    ["Presentation","50 ms","Shortest presentation that keeps the generalisation gradient."],
+    ["Learning rate","0.05","Depression per closed trade, on the cells that chose it."],
+    ["Recovery","0.02 per session","Toward connectome values. Bounds weights away from zero."],
+    ["Verdict noise floor","0.36","Measured range across repeat presentations. Used by the sell rule and the tie rule."],
+    ["Position size","equity × 0.15 × min(1, v / 6.0)","Halved when the margin over the next symbol is below 0.36. Maximum six positions."],
   ].map(([k,v,w])=>`<div><div class="k">${k}</div><div class="v">${v}</div><div class="why">${w}</div></div>`).join("");
 
 

@@ -1,0 +1,174 @@
+"""What the fly remembers between sessions.
+
+Two numbers per Kenyon cell: how strongly it drives the reward-side output
+neurons and the punishment-side ones. Both start at the values the
+connectome gives and move only when dopamine arrives.
+
+Also holds the open positions, each with the Kenyon cells that were firing
+when it was opened. That is what makes credit assignment honest. When a
+position closes weeks later, the profit goes to the cells that were active
+at the moment the fly chose it, not to whatever happens to be firing now.
+
+Nothing here is fitted to market outcomes in the machine learning sense.
+The synapses move by a fixed rule in response to a single trade.
+"""
+
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parent.parent
+STATE = ROOT / "data" / "fly_memory.npz"
+POSITIONS = ROOT / "data" / "fly_positions.json"
+
+# Chosen parameters. Declared here because they are not from the connectome.
+LEARNING_RATE = 0.05     # how far one outcome moves the synapses it touches
+DECAY_RATE = 0.02        # how far every synapse drifts home each session
+
+
+@dataclass
+class OpenPosition:
+    """A trade the fly has taken and not yet been told the result of."""
+
+    symbol: str
+    opened: str
+    qty: float
+    price: float
+    cells: list[int]      # Kenyon cells firing when the fly chose it
+    verdict: float
+    smell: dict[str, float] = field(default_factory=dict)
+
+
+class FlyMemory:
+    """The fly's learned state, loaded at the start of a session and saved at the end."""
+
+    def __init__(self, baseline_reward: np.ndarray, baseline_punish: np.ndarray,
+                 body_ids: list[int]) -> None:
+        self.baseline_reward = baseline_reward
+        self.baseline_punish = baseline_punish
+        self.body_ids = body_ids
+        self.to_reward = baseline_reward.copy()
+        self.to_punish = baseline_punish.copy()
+        self.sessions = 0
+        self.positions: list[OpenPosition] = []
+
+    # ---- persistence -------------------------------------------------
+
+    def load(self) -> None:
+        """Restore what the fly learned. A fly that forgets nightly never learns."""
+        if STATE.exists():
+            saved = np.load(STATE)
+            if len(saved["to_reward"]) == len(self.to_reward):
+                self.to_reward = saved["to_reward"]
+                self.to_punish = saved["to_punish"]
+                self.sessions = int(saved["sessions"])
+        if POSITIONS.exists():
+            raw = json.loads(POSITIONS.read_text())
+            self.positions = [OpenPosition(**p) for p in raw]
+
+    def save(self) -> None:
+        STATE.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(STATE, to_reward=self.to_reward,
+                            to_punish=self.to_punish, sessions=self.sessions)
+        POSITIONS.write_text(json.dumps(
+            [p.__dict__ for p in self.positions], indent=1))
+
+    # ---- the fly's opinion -------------------------------------------
+
+    def verdict(self, cells: np.ndarray) -> float:
+        """Reward-side drive minus punishment-side drive, for the cells firing."""
+        return float(self.to_reward[cells].sum() - self.to_punish[cells].sum())
+
+    # ---- learning ----------------------------------------------------
+
+    def learn(self, cells: list[int], profitable: bool) -> None:
+        """Dopamine depresses the opposite compartment for the cells that fired.
+
+        A win depresses their drive onto the punishment side, so avoidance
+        falls and the verdict for that smell rises. A loss does the reverse.
+        Only cells that were firing are touched, which is what ties the
+        lesson to that particular setup rather than to everything.
+        """
+        index = np.asarray(cells, dtype=int)
+        if index.size == 0:
+            return
+        if profitable:
+            self.to_punish[index] *= (1.0 - LEARNING_RATE)
+        else:
+            self.to_reward[index] *= (1.0 - LEARNING_RATE)
+
+    def forget(self) -> None:
+        """Drift every synapse back toward the value the connectome gave it.
+
+        Without this the rule only ever depresses, so the synapses walk to
+        zero and the fly goes numb. Forgetting is also what keeps it adapting:
+        a lesson that stops being confirmed fades, while one that keeps paying
+        off gets topped up faster than it decays.
+        """
+        self.to_reward += DECAY_RATE * (self.baseline_reward - self.to_reward)
+        self.to_punish += DECAY_RATE * (self.baseline_punish - self.to_punish)
+
+    # ---- positions ---------------------------------------------------
+
+    def open(self, position: OpenPosition) -> None:
+        self.positions.append(position)
+
+    def close(self, symbol: str, profitable: bool) -> OpenPosition | None:
+        """Settle a position and credit the outcome to the cells that chose it."""
+        for i, p in enumerate(self.positions):
+            if p.symbol == symbol:
+                self.learn(p.cells, profitable)
+                return self.positions.pop(i)
+        return None
+
+    def held(self) -> set[str]:
+        return {p.symbol for p in self.positions}
+
+    def drift(self) -> float:
+        """How far the fly has moved from the connectome it started with."""
+        moved = (np.abs(self.to_reward - self.baseline_reward)
+                 + np.abs(self.to_punish - self.baseline_punish))
+        return float(moved.mean())
+
+
+def from_connectome(kc_body_ids: list[int]) -> FlyMemory:
+    """Build a fresh, untrained memory from the wiring.
+
+    An output neuron's valence is read off which dopamine population drives
+    it, so nothing here is assigned by hand.
+    """
+    ann = pd.read_feather(ROOT / "data/malecns/body-annotations.feather").drop_duplicates("bodyId")
+    types = ann["type"].fillna("")
+    mbon = set(ann[types.str.match(r"MBON")]["bodyId"].astype(int))
+    pam = set(ann[types.str.match(r"PAM")]["bodyId"].astype(int))
+    ppl = set(ann[types.str.match(r"PPL1")]["bodyId"].astype(int))
+
+    w = pd.read_feather(ROOT / "data/malecns/weights.feather",
+                        columns=["body_pre", "body_post", "weight"])
+    onto_mbon = w[w.body_post.isin(mbon)]
+    reward_side, punish_side = set(), set()
+    for body in mbon:
+        e = onto_mbon[onto_mbon.body_post == body]
+        r = e[e.body_pre.isin(pam)].weight.sum()
+        p = e[e.body_pre.isin(ppl)].weight.sum()
+        if r > p:
+            reward_side.add(body)
+        elif p > r:
+            punish_side.add(body)
+
+    position = {b: i for i, b in enumerate(kc_body_ids)}
+    to_reward = np.zeros(len(kc_body_ids))
+    to_punish = np.zeros(len(kc_body_ids))
+    for row in onto_mbon.itertuples():
+        i = position.get(int(row.body_pre))
+        if i is None:
+            continue
+        if int(row.body_post) in reward_side:
+            to_reward[i] += row.weight
+        elif int(row.body_post) in punish_side:
+            to_punish[i] += row.weight
+    scale = max(to_reward.max(), to_punish.max(), 1.0)
+    return FlyMemory(to_reward / scale, to_punish / scale, kc_body_ids)

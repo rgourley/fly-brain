@@ -34,6 +34,11 @@ BASE = "https://www.clawstreet.io/api"
 MANIFEST = FLIES / "flies.json"
 DATA_KEYCHAIN = "clawstreet-turtle-api-key"   # read-only market data until the fly has a key
 TIMEOUT = 20
+# The brain takes minutes. The pick is re-quoted right before the order, and
+# the order is sized from that quote. If the price moved further than this
+# while the fly was thinking, the smell it judged is no longer the smell on
+# the table, so it does not buy. Ours, not the fly's.
+MAX_DRIFT = {"stocks": 0.015, "crypto": 0.03}
 
 
 def keychain(item: str) -> str | None:
@@ -85,6 +90,12 @@ def history(key: str, symbols: list[str], periods: int = 20) -> dict[str, dict]:
     return {s: out[s] for s in symbols if s in out and out[s].get("derived")}
 
 
+def quotes(key: str, symbols: list[str]) -> dict[str, float]:
+    """Live prices, the ones an order fills against. One source for both looks at the price."""
+    got = api(key, "GET", f"/data/quotes?symbols={quote(','.join(symbols))}")["quotes"]
+    return {s: float(q["price"]) for s, q in got.items() if q.get("price")}
+
+
 # ---- what closed since last time -------------------------------------------
 
 def closed_positions(key: str, bot_id: str, fly_positions: list[dict]) -> dict[str, bool]:
@@ -119,7 +130,8 @@ def short(symbol: str) -> str:
     return symbol.removeprefix("X:").removesuffix("USD") if symbol.startswith("X:") else symbol
 
 
-def thought(result: dict, board_size: int, qty: float | None, price: float | None, session: int) -> str:
+def thought(result: dict, board_size: int, qty: float | None, price: float | None, session: int,
+            moved: tuple[str, float] | None = None) -> str:
     """What the fly posts. Third person, the numbers as they are, under 500 characters."""
     lines = []
     for sym, won in result["settled"]:
@@ -145,6 +157,9 @@ def thought(result: dict, board_size: int, qty: float | None, price: float | Non
             head += f" Clear of the rest by {order['margin']:.2f}: ${spend:,.0f}"
         head += f", {qty:g} at ${price:,.2f}." if qty and price else "."
         lines.append(head)
+    elif moved:
+        lines.append(f"{board_size} on the table. {short(moved[0])} smelled best, then moved {moved[1]:+.1%} "
+                     f"while the fly was thinking. Not the smell it judged any more, so nothing bought.")
     else:
         why = "holds the maximum already" if len(result["held"]) >= MAX_POSITIONS else "nothing on the table it could buy"
         lines.append(f"{board_size} on the table, nothing bought: {why}.")
@@ -224,17 +239,32 @@ def main() -> None:
     if len(board) < 2:
         raise SystemExit(f"history came back thin: {list(board)}")
 
+    before = quotes(key, list(board))
+    began = time.monotonic()
     result = run_session(board, closed, dry_run=not args.go, fly_id=args.fly, when=when, account=account, record=args.record)
+    thinking = time.monotonic() - began
     order = result["order"]
     qty = price = None
+    moved = None
     if order:
-        price = float(board[order["symbol"]]["current_price"])
+        seen = before[order["symbol"]]
+        price = quotes(key, [order["symbol"]])[order["symbol"]]
+        drift = price / seen - 1
+        print(f"thinking took {thinking:.0f}s; {order['symbol']} went ${seen:,.4g} -> ${price:,.4g} ({drift:+.2%}) meanwhile")
+        if abs(drift) > MAX_DRIFT[row["universe"]]:
+            moved = (order["symbol"], drift)
+            if args.go:   # the session already wrote the position down; take it back
+                pos_path = home / "positions.json"; pos = json.loads(pos_path.read_text())
+                pos["open"] = [p for p in pos["open"] if not (p["symbol"] == order["symbol"] and p["qty"] == 0.0)]
+                pos_path.write_text(json.dumps(pos, indent=1))
+            order = None; result["order"] = None
+    if order:
         raw = order["dollars"] / price
         qty = round(raw, 5) if order["symbol"].startswith("X:") else float(int(raw))
         if qty <= 0:
             order = None; result["order"] = None
     session = result["session"] + (0 if args.go else 1)
-    text = thought(result, len(board), qty, price, session)
+    text = thought(result, len(board), qty, price, session, moved)
 
     print(f"fly {args.fly} · session {session} · {when.strftime('%Y-%m-%d %H:%M')} UTC · equity ${account:,.0f}")
     print("board:   " + ", ".join(board))

@@ -99,7 +99,12 @@
   .brainlabel { position: absolute; left: 10px; bottom: 8px; font: 500 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); pointer-events: none; }
   .ov-bl { left: 32px; bottom: 22px; max-width: 560px; }
   .ov-br { right: 32px; bottom: 22px; }
-  .ov-brain { right: 32px; top: 68px; width: 440px; display: flex; flex-direction: column; gap: 6px; }
+  .brainwrap { position: relative; }
+  .flyhead { display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; background: rgba(13,13,16,.55); backdrop-filter: blur(8px); }
+  :root[data-theme="light"] .flyhead { background: rgba(248,249,251,.6); }
+  .flyhead p { margin: 0; font-size: 11px; letter-spacing: .02em; color: var(--muted); }
+  .flyhead #flypick { width: 100%; }
+  .ov-brain { right: 32px; top: 22px; width: 440px; display: flex; flex-direction: column; gap: 6px; }
   #brain3d { width: 100%; height: 330px; display: block; border-radius: 12px; cursor: grab; background: rgba(13,13,16,.38); backdrop-filter: blur(10px); }
   :root[data-theme="light"] #brain3d { background: rgba(248,249,251,.55); }
   .brainbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(22,22,26,.72); backdrop-filter: blur(6px); font: 500 12px var(--mono); color: var(--text); }
@@ -124,7 +129,7 @@
   @media (max-width: 860px) {
     .hero { height: 62vh; min-height: 420px; }
     .ov-tl { max-width: 60%; padding: 6px 10px; } .ov-tl p { font-size: 11px; }
-    .ov-brain { width: min(300px, 62vw); top: 76px; } #brain3d { height: 200px; } .trace { height: 72px; } .brainbar { font-size: 11px; padding: 6px 8px; }
+    .ov-brain { width: min(300px, 62vw); top: 16px; } #brain3d { height: 200px; } .trace { height: 72px; } .brainbar { font-size: 11px; padding: 6px 8px; }
     .ov-bl { max-width: calc(100% - 48px); }
   }
 
@@ -239,14 +244,16 @@
   </div>
   <div class="hero">
     <canvas id="fly3d" aria-label="A fruit fly at a table of six charts"></canvas>
-    <div class="ov ov-tl">
-      <select id="flypick" aria-label="Choose a fly"><option>Fly 001</option></select>
-      <p class="mono" id="status"></p>
-    </div>
     <div class="ov ov-brain">
-      <canvas id="brain3d" aria-label="The fly's brain, with the olfactory circuit lit by the current smell"></canvas>
-      <button id="brainbig" class="expand" aria-label="Make the brain panel larger">Larger</button>
-      <span class="brainlabel">Smell centres light first, then the learning centre</span>
+      <div class="flyhead">
+        <select id="flypick" aria-label="Choose a fly"><option>Fly 001</option></select>
+        <p class="mono" id="status"></p>
+      </div>
+      <div class="brainwrap">
+        <canvas id="brain3d" aria-label="The fly's brain, with the olfactory circuit lit by the current smell"></canvas>
+        <button id="brainbig" class="expand" aria-label="Make the brain panel larger">Larger</button>
+        <span class="brainlabel">Smell centres light first, then the learning centre</span>
+      </div>
       <div class="brainbar" id="brainbar"><span class="t">Waking up</span><span class="v"></span></div>
       <canvas id="ekg" class="ekg" aria-label="Kenyon cell activity over time"></canvas>
       <canvas id="trace" class="trace" aria-label="The smell as 51 channels, and the verdicts so far"></canvas>

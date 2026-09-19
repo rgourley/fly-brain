@@ -117,9 +117,13 @@ def closed_positions(key: str, bot_id: str, fly_positions: list[dict]) -> dict[s
     for p in gone:
         since = p["opened"]
         pnl = 0.0
-        for f in fills:
-            if f["symbol"] != p["symbol"] or f["created_at"][:10] < since:
-                continue
+        mine = [f for f in fills if f["symbol"] == p["symbol"] and f["created_at"][:10] >= since]
+        if not mine:
+            continue   # never filled, so there is no outcome to learn from; main() drops it
+        net = sum(f["qty"] if f["side"] in ("buy", "cover") else -f["qty"] for f in mine)
+        if net > 1e-6:
+            continue   # bought and not sold: still held, the positions view is just behind
+        for f in mine:
             value = f["qty"] * f["price"]
             pnl += value if f["side"] in ("sell", "cover") else -value
             pnl -= f.get("commission") or 0.0
@@ -287,6 +291,14 @@ def main() -> None:
         portfolio = api(key, "GET", f"/v1/me/agents/{bot_id}/portfolio")
         account = float(portfolio["equity"])
         closed = closed_positions(key, bot_id, positions["open"] + positions["pending"])
+        live = {p["symbol"] for p in portfolio.get("positions", [])}
+        filled = {f["symbol"] for f in api(key, "GET", f"/v1/me/agents/{bot_id}/fills?limit=500")["data"]}
+        ghosts = [p["symbol"] for p in positions["open"] + positions["pending"] if p["symbol"] not in live and p["symbol"] not in closed and p["symbol"] not in filled]
+        if ghosts and args.go:
+            positions = {k: [p for p in v if p["symbol"] not in ghosts] for k, v in positions.items()}
+            (home / "positions.json").write_text(json.dumps(positions, indent=1))
+            held = {p["symbol"] for p in positions["open"]}
+            print("dropped paper positions that never filled: " + ", ".join(ghosts))
 
     seed = args.seed if args.seed is not None else int(when.strftime("%Y%m%d%H%M"))
     symbols = compose_board(held, universe(key, row["universe"]), seed, BOARD_SIZE)
@@ -348,11 +360,18 @@ def main() -> None:
                 headers={"Idempotency-Key": str(uuid.uuid4())})
             time.sleep(1)
     if order:
-        placed = api(key, "POST", f"/v1/me/agents/{bot_id}/orders", json_body={
-            "symbol": order["symbol"], "side": "buy", "qty": qty, "type": "market",
-            "reasoning": text + "\n\nWhat it smelled of:\n" + next(e["smell"] for e in reversed(json.loads(Path(result["replay"]).read_text())["events"]) if e["type"] == "buy")},
-            headers={"Idempotency-Key": str(uuid.uuid4())})
-        print("order placed:", placed.get("data", placed).get("id", placed))
+        try:
+            placed = api(key, "POST", f"/v1/me/agents/{bot_id}/orders", json_body={
+                "symbol": order["symbol"], "side": "buy", "qty": qty, "type": "market",
+                "reasoning": text + "\n\nWhat it smelled of:\n" + next(e["smell"] for e in reversed(json.loads(Path(result["replay"]).read_text())["events"]) if e["type"] == "buy")},
+                headers={"Idempotency-Key": str(uuid.uuid4())})
+        except RuntimeError:
+            # The order did not go through, so the fly does not hold it. Take the paper position back.
+            pos = json.loads((home / "positions.json").read_text())
+            pos["open"] = [p for p in pos["open"] if not (p["symbol"] == order["symbol"] and p["qty"] == 0.0)]
+            (home / "positions.json").write_text(json.dumps(pos, indent=1))
+            raise
+        print("order placed:", (placed.get("order") or placed.get("data") or placed).get("id"))
         # Write the real quantity and price back onto the paper position.
         pos = json.loads((home / "positions.json").read_text())
         for p in pos["open"]:

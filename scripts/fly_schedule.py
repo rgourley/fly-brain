@@ -2,6 +2,7 @@
 
     python scripts/fly_schedule.py install --mode record   # rehearsals: real data, real brain, no orders
     python scripts/fly_schedule.py install --mode go       # live: places orders and posts thoughts
+    python scripts/fly_schedule.py install --mode go --fly 002   # one fly only
     python scripts/fly_schedule.py remove
     python scripts/fly_schedule.py status
 
@@ -37,9 +38,11 @@ def unload(fly: str) -> None:
     subprocess.run(["launchctl", "bootout", f"{domain()}/{label(fly)}"], capture_output=True)
 
 
-def install(mode: str) -> None:
+def install(mode: str, only: str | None = None) -> None:
     AGENTS.mkdir(parents=True, exist_ok=True)
     for fly in json.loads((FLIES / "flies.json").read_text()):
+        if only and fly != only:
+            continue
         (FLIES / fly).mkdir(parents=True, exist_ok=True)
         log = str(FLIES / fly / "run.log")
         plist = {
@@ -81,5 +84,6 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("command", choices=["install", "remove", "status"])
     ap.add_argument("--mode", choices=["record", "go"], default="record")
+    ap.add_argument("--fly", default=None, help="only this fly; default is all of them")
     args = ap.parse_args()
-    {"install": lambda: install(args.mode), "remove": remove, "status": status}[args.command]()
+    {"install": lambda: install(args.mode, args.fly), "remove": remove, "status": status}[args.command]()

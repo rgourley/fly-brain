@@ -1,4 +1,4 @@
-// The fly at the table. Real sizes: one unit is one centimetre. The fly is
+// The fly at the table. Real sizes: one unit is one centimeter. The fly is
 // 3 mm long, the charts are a foot wide, the table is 113 by 71 cm. The body
 // is NeuroMechFly (EPFL, Apache-2.0), 39 parts from a micro-CT scan, posed and
 // walked here by rotating its joints; the table and the room light are Poly
@@ -49,7 +49,7 @@ window.Fly3D = function (opts) {
   // ---- the table ----------------------------------------------------------
   const texLoader = new THREE.TextureLoader();
   const grain = texLoader.load("textures/wood_nor_gl.jpg", t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; });
-  // A 1k scan of a whole table is a millimetre per texel. To a 3 mm fly that is
+  // A 1k scan of a whole table is a millimeter per texel. To a 3 mm fly that is
   // a blur, so the scan's own grain is tiled on top at a finer scale.
   function detail(mat, map, scale, strength) {
     mat.onBeforeCompile = sh => {
@@ -199,7 +199,7 @@ window.Fly3D = function (opts) {
   async function loadRig() {
     const rig = await fetch("model/rig.json").then(r => r.json());
     // Cuticle is striped: each abdominal tergite is tan with a dark band along
-    // its rear edge. The rest of the body is one colour per part.
+    // its rear edge. The rest of the body is one color per part.
     const matFor = n => n.includes("eye") ? new THREE.MeshStandardMaterial({color: 0x80170a, roughness: 0.32})
       : n.includes("wing") ? new THREE.MeshPhysicalMaterial({color: 0xd9dee6, transparent: true, opacity: 0.4, side: THREE.DoubleSide, roughness: 0.12, depthWrite: false})
       : n.includes("arista") ? new THREE.MeshStandardMaterial({color: 0x241a12, roughness: 0.6})
@@ -283,7 +283,8 @@ window.Fly3D = function (opts) {
     R.groomH = ease(R.groomH, act.groom === "head" && !airborne ? 1 : 0, dt, 5);
     R.groomB = ease(R.groomB, act.groom === "body" && !airborne ? 1 : 0, dt, 5);
     R.twitch = ease(R.twitch, act.sniff && !airborne ? 1 : 0, dt, 4);
-    const rub = Math.sin(t * 30);
+    const rub = Math.sin(t * (act.part === "antennae" ? 40 : act.part === "wings" ? 22 : 30));
+    const reach = act.part === "antennae" ? 0.82 : act.part === "wings" ? 1.22 : 1;   // antennae sit lower than the eyes; wings are a longer sweep than the abdomen
     for (const L of R.legs) {
       const p = R.stride + (L.group ? Math.PI : 0);
       const swing = Math.sin(p) * 0.28 * gait, up = Math.max(0, Math.cos(p));
@@ -294,8 +295,8 @@ window.Fly3D = function (opts) {
       L.tibia.turn(L.lift, -(flex + 1.2 * R.tuck));
       L.tarsus.turn(L.lift, -0.4 * R.tuck);
       const front = L.id[1] === "f", hind = L.id[1] === "h", s = L.id[0] === "l" ? 1 : -1;
-      if (front && R.groomH > 0) { L.coxa.turn(Y, L.fwd * 0.55 * R.groomH); L.coxa.turn(L.lift, (0.75 + 0.18 * rub * s) * R.groomH); L.tibia.turn(L.lift, -(1.3 + 0.2 * rub * s) * R.groomH); }
-      if (hind && R.groomB > 0) { L.coxa.turn(Y, -L.fwd * 0.5 * R.groomB); L.coxa.turn(L.lift, (0.7 + 0.15 * rub * s) * R.groomB); L.tibia.turn(L.lift, -(1.1 + 0.25 * rub * s) * R.groomB); }
+      if (front && R.groomH > 0) { L.coxa.turn(Y, L.fwd * 0.55 * R.groomH); L.coxa.turn(L.lift, (0.75 * reach + 0.18 * rub * s) * R.groomH); L.tibia.turn(L.lift, -(1.3 + 0.2 * rub * s) * R.groomH); }
+      if (hind && R.groomB > 0) { L.coxa.turn(Y, -L.fwd * 0.5 * R.groomB); L.coxa.turn(L.lift, (0.7 * reach + 0.15 * rub * s) * R.groomB); L.tibia.turn(L.lift, -(1.1 + 0.25 * rub * s) * R.groomB); }
     }
     // Wings beat mostly above the body plane; stroboscopic, like the simulator.
     const flap = airborne ? 0.3 + Math.sin(t * 75) * 0.6 : 0;
@@ -307,12 +308,12 @@ window.Fly3D = function (opts) {
     R.head.reset(); R.head.turn(X, 0.03 * Math.sin(R.stride * 2) * gait + (R.groomH ? Math.sin(t * 7) * 0.1 * R.groomH : 0));
   }
 
-  // ---- behaviour ---------------------------------------------------------
+  // ---- behavior ---------------------------------------------------------
   // The fly flies to a card, lands, walks a little on it while its antennae
   // work, tastes it, and leaves. How long it stays is the verdict.
   let mode = "idle", waypoints = [], dwellMs = 0, dwellUntil = 0, onDone = null, current = pick || order[0];
   let flight = null, onArrive = null;   // flight: {from, to, s, len}
-  const act = {feeding: false, groom: null, sniff: false};
+  const act = {feeding: false, groom: null, part: null, sniff: false};
   let heading = 0, speedNow = 0;
   const say = s => caption && caption(s);
   const onCard = (sym, spread = 0.8) => { const p = dish[sym]; return new THREE.Vector3(p.x + rnd(-1, 1) * CARD.w / 2 * spread, 0, p.z + rnd(-1, 1) * CARD.h / 2 * spread); };
@@ -336,11 +337,26 @@ window.Fly3D = function (opts) {
     waypoints = [nearby(dish[sym], 3)]; dwellMs = 7000; takeOff(onCard(sym, 0.4)); say(`Going back to ${short(sym)}`);
   }
   function goto(sym) { visit(sym, stocks[sym].verdict, null); }
-  function abort() { onDone = null; onArrive = null; exploring = false; }
+  function abort() { onDone = null; onArrive = null; exploring = false; groomQueue = []; }
 
   // Off duty, the fly does what flies do: walks somewhere, flies somewhere,
   // stops to groom or rest.
-  let exploring = false, dwellFeed = false, groomUntil = 0;
+  let exploring = false, dwellFeed = false;
+  // Grooming follows the fly's fixed priority (Seeds et al. 2014): eyes, then antennae, then abdomen,
+  // then wings. The front legs do the head, the hind legs do the body. A bout can stop after any part.
+  const GROOM = [["eyes", "head", 2200, 4200], ["antennae", "head", 1600, 3200], ["abdomen", "body", 2200, 4200], ["wings", "body", 2400, 4600]];
+  let groomQueue = [];
+  function startGrooming(now, carryOn = 0.6) {
+    groomQueue = []; let t = now;
+    for (const [part, legs, lo, hi] of GROOM) { t += rnd(lo, hi); groomQueue.push({part, legs, until: t}); if (Math.random() > carryOn) break; }
+    return t - now;
+  }
+  // How active a fly is at this hour. They are busiest around dawn and dusk, slow at midday and
+  // nearly still at night (Drosophila's two daily activity peaks). The viewer's own clock sets it.
+  function alertness(date = new Date()) {
+    const h = date.getHours() + date.getMinutes() / 60, bump = (at, w) => { const d = ((h - at + 36) % 24 - 12) / w; return Math.exp(-d * d); };
+    return Math.min(1, 0.18 + 0.85 * Math.max(bump(7.5, 2.2), bump(19, 2.4)) + 0.2 * bump(13, 3));
+  }
   // Three needs, 0 to 1, that rise with time and effort and choose what the
   // fly does off duty. Ours, not the connectome's: the brain here only smells.
   const needs = {hunger: 0.35, thirst: 0.45, tired: 0.2};
@@ -350,7 +366,8 @@ window.Fly3D = function (opts) {
     say(label);
   }
   const randomSpot = () => new THREE.Vector3(rnd(-TABLE.x, TABLE.x), 0, rnd(-TABLE.z, TABLE.z));
-  function explore(steps, done) {
+  // brief: the short warm-up before a replay, which should not make the viewer wait through a nap.
+  function explore(steps, done, brief = false) {
     exploring = true; let left = steps;
     const step = () => {
       if (!exploring) return;
@@ -360,10 +377,13 @@ window.Fly3D = function (opts) {
       if (needs.thirst > 0.75) { goSpot(SPOT.water, "Going for water", "thirst", step); return; }
       if (needs.hunger > 0.75) { goSpot(SPOT.sugar, "Going for sugar", "hunger", step); return; }
       if (held.length && r < 0.14) { const h = held[Math.floor(Math.random() * held.length)]; exploring = false; visit(h, stocks[h].verdict, () => { exploring = true; step(); }, () => onSniff && onSniff(h)); return; }
-      if (r < 0.5) { waypoints = [nearby(fly.position, 2.5), nearby(fly.position, 2.5)]; dwellMs = 300 + Math.random() * 500; mode = "walk"; say("Walking"); }
-      else if (r < 0.7) { const q = randomSpot(); waypoints = [nearby(q, 1.5)]; dwellMs = 300; takeOff(q); say("Flying"); }
-      else if (r < 0.85) { waypoints = []; dwellMs = 1400 + Math.random() * 1400; mode = "walk"; act.groom = Math.random() < 0.6 ? "head" : "body"; say("Grooming"); }
-      else { waypoints = []; dwellMs = 1600 + Math.random() * 1800; mode = "walk"; say("Resting"); }
+      // A fly is still about half the time, more when it is a quiet hour (Berman et al. 2014).
+      // What is left goes to walking, then grooming, then the odd flight.
+      const a = alertness(), rest = brief ? 0.1 : 0.72 - 0.4 * a, q = Math.random();
+      if (r < rest) { waypoints = []; dwellMs = brief ? rnd(800, 1500) : rnd(5000, 14000) * (1.5 - a); mode = "walk"; say("Resting"); }
+      else if (q < 0.5) { waypoints = [nearby(fly.position, 2.5), nearby(fly.position, 2.5)]; dwellMs = rnd(300, 800); mode = "walk"; say("Walking"); }
+      else if (q < 0.85) { waypoints = []; mode = "walk"; dwellMs = startGrooming(performance.now(), brief ? 0.2 : 0.6); }
+      else { const spot = randomSpot(); waypoints = [nearby(spot, 1.5)]; dwellMs = 300; takeOff(spot); say("Flying"); }
     };
     step();
   }
@@ -378,8 +398,14 @@ window.Fly3D = function (opts) {
     needs.thirst = Math.min(1, needs.thirst + dt * 0.009);
     needs.tired = Math.max(0, Math.min(1, needs.tired + dt * (mode === "fly" ? 0.03 : mode === "walk" && waypoints.length ? 0.008 : still ? -0.09 : 0.002)));
     // Flies clean themselves right after landing, most of the time.
-    if (mode !== "fly" && now < groomUntil) { act.groom = "head"; fly.rotation.y = heading; return false; }
-    if (groomUntil && now >= groomUntil) { groomUntil = 0; act.groom = null; }
+    // A new instruction can arrive mid-flight (Replay pressed, a card clicked). The fly must come
+    // down before it does anything on foot, or it walks on air.
+    if (mode !== "fly" && fly.position.y > 0) { fly.position.y = Math.max(0, fly.position.y - dt * 14); fly.rotation.y = heading; return fly.position.y > 0; }
+    if (mode !== "fly" && groomQueue.length) {
+      while (groomQueue.length && now >= groomQueue[0].until) groomQueue.shift();
+      if (groomQueue.length) { const g = groomQueue[0]; act.groom = g.legs; act.part = g.part; say(`Grooming its ${g.part}`); fly.rotation.y = heading; return false; }
+      act.groom = null; act.part = null;
+    }
     if (mode === "fly") {
       airborne = true;
       flight.s = Math.min(1, flight.s + dt * FLIGHT / flight.len);
@@ -389,7 +415,7 @@ window.Fly3D = function (opts) {
       const ahead = tmp.clone().sub(fly.position);
       fly.position.set(tmp.x, h, tmp.z); speedNow = FLIGHT;
       if (ahead.lengthSq() > 1e-6) heading = Math.atan2(ahead.x, ahead.z);
-      if (s >= 1) { fly.position.y = 0; mode = "walk"; if (Math.random() < 0.6) groomUntil = now + 1100 + Math.random() * 900; if (dish[current] && !exploring) say(`Sniffing ${short(current)}`); if (onArrive) { const f = onArrive; onArrive = null; f(); } }
+      if (s >= 1) { fly.position.y = 0; mode = "walk"; if (exploring ? Math.random() < 0.65 : Math.random() < 0.3) startGrooming(now, exploring ? 0.35 : 0); if (dish[current] && !exploring) say(`Sniffing ${short(current)}`); if (onArrive) { const f = onArrive; onArrive = null; f(); } }
     } else if (mode === "walk") {
       const w = waypoints[0];
       if (!w) { mode = "dwell"; dwellUntil = now + dwellMs; act.feeding = !exploring || dwellFeed; act.sniff = !exploring; if (dwellFeed) say(current && false ? "" : (needs.thirst > needs.hunger ? "Drinking" : "Feeding")); return false; }
@@ -411,7 +437,7 @@ window.Fly3D = function (opts) {
   }
 
   // ---- camera --------------------------------------------------------------
-  let slideNow = -1;
+  let slideNow = -1, flightFeel = 0;
   let view = "follow", orbit = 0.6, tilt = 0, dragging = null, dragUntil = 0, debugTop = false;
   canvas.addEventListener("pointerdown", e => { dragging = {x: e.clientX, y: e.clientY}; canvas.setPointerCapture(e.pointerId); });
   canvas.addEventListener("pointermove", e => { if (!dragging) return; orbit += (e.clientX - dragging.x) * 0.006; tilt = Math.max(-0.6, Math.min(1.2, tilt - (e.clientY - dragging.y) * 0.004)); dragging = {x: e.clientX, y: e.clientY}; dragUntil = performance.now() + 4000; });
@@ -432,7 +458,13 @@ window.Fly3D = function (opts) {
     // that eases, so a flight never leaves the frame and a view change glides.
     if (view === "wide") { camPos.lerp(wantPos, Math.min(1, dt * 2)); look.lerp(wantLook, Math.min(1, dt * 2)); }
     else { wantPos.sub(fly.position); camOff.lerp(wantPos, Math.min(1, dt * 4)); camPos.copy(fly.position).add(camOff); look.copy(wantLook); }
-    camera.position.copy(camPos); camera.lookAt(look);
+    // In the air the shot loosens: a wider lens, a little handheld shake, a slight bank.
+    flightFeel += ((mode === "fly" && !reduce ? 1 : 0) - flightFeel) * Math.min(1, dt * 4);
+    const ft = performance.now() / 1000, amp = 0.035 * flightFeel * (view === "wide" ? 0 : camOff.length());
+    camera.position.copy(camPos).add(tmp.set(Math.sin(ft * 13.1) + 0.5 * Math.sin(ft * 29.3), Math.sin(ft * 17.7) + 0.5 * Math.sin(ft * 31.9), Math.sin(ft * 11.3)).multiplyScalar(amp));
+    camera.lookAt(look);
+    camera.rotateZ(Math.sin(ft * 2.3) * 0.045 * flightFeel);
+    const fov = 32 + 8 * flightFeel; if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
     if (debugTop) { camera.position.set(fly.position.x + 0.001, fly.position.y + 1.1, fly.position.z); camera.lookAt(fly.position); }
     // The brain panel covers the right of the frame, so the picture is slid
     // left: a little on a wide window, a lot on a narrow one.

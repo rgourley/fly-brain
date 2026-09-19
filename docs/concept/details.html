@@ -187,8 +187,8 @@
 
   <section class="paper">
     <h2>Summary</h2>
-    <p>We simulate the olfactory learning circuit of <em>Drosophila melanogaster</em>, 7,443 neurons taken from the male CNS connectome, and use it as the decision-maker for paper-trading agents on ClawStreet. A stock's technical state is encoded as an odour across 51 glomerular channels. The Kenyon cells that respond, weighted by their wiring onto reward-side and punishment-side output neurons, give a scalar verdict. The agent buys the highest verdict and sizes by it. Closed trades drive a dopamine-gated depression rule at the Kenyon cell output synapses, with slow recovery toward the connectome's values.</p>
-    <p>Untrained, the circuit ranks eight reference setups with a spread 21 times its trial-to-trial noise. A learned change generalises to similar setups in proportion to shared Kenyon cells, 57% at 35% shared cells and 4% at 1%. The sparse Kenyon cell code retains most of the input information: a linear readout scores 0.923 AUC against 0.948 for the raw inputs on a synthetic three-feature rule. Two flies trade live, one on US equities daily and one on crypto every four hours.</p>
+    <p>We simulate the olfactory learning circuit of <em>Drosophila melanogaster</em>, 7,443 neurons taken from the male CNS connectome, and use it as the decision-maker for paper-trading agents on ClawStreet. A stock's technical state is encoded as an odor across 51 glomerular channels. The Kenyon cells that respond, weighted by their wiring onto reward-side and punishment-side output neurons, give a scalar verdict. The agent buys the highest verdict and sizes by it. Closed trades drive a dopamine-gated depression rule at the Kenyon cell output synapses, with slow recovery toward the connectome's values.</p>
+    <p>Untrained, the circuit ranks eight reference setups with a spread 21 times its trial-to-trial noise. A learned change generalizes to similar setups in proportion to shared Kenyon cells, 57% at 35% shared cells and 4% at 1%. The sparse Kenyon cell code retains most of the input information: a linear readout scores 0.923 AUC against 0.948 for the raw inputs on a synthetic three-feature rule. Two flies trade live, one on US equities daily and one on crypto every four hours.</p>
   </section>
 
   <section class="paper">
@@ -199,7 +199,7 @@
   <section class="paper">
     <h2>2. The simulated circuit</h2>
     <p>We simulate the olfactory pathway in isolation: olfactory receptor neurons, the projection neurons that receive from them and project to Kenyon cells, all 4,064 Kenyon cells, the APL neuron, the mushroom body output neurons, and the PAM and PPL1 dopamine neurons. 7,443 neurons in total.</p>
-    <p>Isolation is required for odour discrimination under uniform synaptic weights. In the whole-brain model, 2,215 Kenyon cells are reachable from a single glomerulus within two synapses through unrelated neuropils, and those paths carry as much weight as the direct one. Two unrelated channels then activate overlapping Kenyon cell sets. Reducing the synaptic quantum lowers activity without separating the sets.</p>
+    <p>Isolation is required for odor discrimination under uniform synaptic weights. In the whole-brain model, 2,215 Kenyon cells are reachable from a single glomerulus within two synapses through unrelated neuropils, and those paths carry as much weight as the direct one. Two unrelated channels then activate overlapping Kenyon cell sets. Reducing the synaptic quantum lowers activity without separating the sets.</p>
     <div class="tbl"><table>
       <tr><th>Network</th><th class="num">Active Kenyon cells, channel A / B</th><th class="num">Shared</th></tr>
       <tr><td>Whole brain</td><td class="num">160 / 157</td><td class="num">60%</td></tr>
@@ -210,16 +210,16 @@
 
   <section class="paper">
     <h2>3. Graded inhibition from APL</h2>
-    <p>APL receives from all Kenyon cells and inhibits all of them. In the animal it is non-spiking and releases GABA in proportion to Kenyon cell activity. As a spiking unit it fires at 363 Hz and produces little net inhibition. We model it as a graded feedback term: a low-pass trace of Kenyon cell spiking, scaled by a gain, subtracted from every Kenyon cell's input. With gain 250, 2 to 4% of Kenyon cells respond to an odour, against roughly 5% in recordings. The gain is a free parameter set to reach that range.</p>
+    <p>APL receives from all Kenyon cells and inhibits all of them. In the animal it is non-spiking and releases GABA in proportion to Kenyon cell activity. As a spiking unit it fires at 363 Hz and produces little net inhibition. We model it as a graded feedback term: a low-pass trace of Kenyon cell spiking, scaled by a gain, subtracted from every Kenyon cell's input. With gain 250, 2 to 4% of Kenyon cells respond to an odor, against roughly 5% in recordings. The gain is a free parameter set to reach that range.</p>
     <p>The converter also forces L1 lamina neurons excitatory. L1 is glutamatergic but excites Mi1; under the blanket sign rule it contributes 142,185 inhibitory synapses and silences the ON motion pathway. This does not affect the olfactory circuit and is recorded for anyone using the converted files for vision.</p>
   </section>
 
   <section class="paper">
     <h2>4. Stimulus encoding</h2>
-    <p>Each symbol supplies six readings from ClawStreet's market data: RSI(14), position within the Bollinger band, fractional distance from the 50-day average, volume relative to its average, five-day return, and RSI trend. Each numeric reading <code>x</code> is encoded over eight bands with centres <code>c<sub>k</sub></code> spaced <code>&Delta;</code> apart:</p>
-    <p><code>a<sub>k</sub> = exp(&minus;((x &minus; c<sub>k</sub>) / 0.75&Delta;)<sup>2</sup>)</code>, normalised so the strongest band is 1.</p>
+    <p>Each symbol supplies six readings from ClawStreet's market data: RSI(14), position within the Bollinger band, fractional distance from the 50-day average, volume relative to its average, five-day return, and RSI trend. Each numeric reading <code>x</code> is encoded over eight bands with centers <code>c<sub>k</sub></code> spaced <code>&Delta;</code> apart:</p>
+    <p><code>a<sub>k</sub> = exp(&minus;((x &minus; c<sub>k</sub>) / 0.75&Delta;)<sup>2</sup>)</code>, normalized so the strongest band is 1.</p>
     <p>Band ranges are RSI 15 to 85, Bollinger position 0 to 1, distance from the average &minus;20% to +20%, volume ratio 0.5 to 3 on a log scale, and five-day return &minus;15% to +15%. RSI trend uses three binary channels. Seven further channels are reserved for news sentiment and days to earnings and are currently silent. Total: 51 channels.</p>
-    <p>Channels map to glomeruli in sorted order of glomerulus name. The mapping carries no meaning beyond being fixed. A channel with activation <code>a</code> drives every receptor neuron of its glomerulus with Poisson input at <code>100a</code> Hz. Each symbol is presented for 50 ms from rest. The ticker is never encoded, so identical technical states produce identical odours across symbols.</p>
+    <p>Channels map to glomeruli in sorted order of glomerulus name. The mapping carries no meaning beyond being fixed. A channel with activation <code>a</code> drives every receptor neuron of its glomerulus with Poisson input at <code>100a</code> Hz. Each symbol is presented for 50 ms from rest. The ticker is never encoded, so identical technical states produce identical odors across symbols.</p>
   </section>
 
   <section class="paper">
@@ -253,7 +253,7 @@
         <div class="bars" id="innate"></div>
       </div>
       <div>
-        <h3 style="margin-bottom:10px">Generalisation of a learned change</h3>
+        <h3 style="margin-bottom:10px">Generalization of a learned change</h3>
         <p style="margin-bottom:14px">One setup rewarded eight times. Shift in verdict on setups at increasing distance, as a share of the trained setup's shift. Shared Kenyon cells fall from 35% to 1% across the same range. Punishment gives the same gradient.</p>
         <div class="bars" id="gradient"></div>
       </div>
@@ -267,7 +267,7 @@
       <tr><td>Oversold, heavy volume, near lows</td><td class="num">+2.35</td><td class="num">10</td><td class="num">11</td></tr>
     </table></div>
     <h3 style="margin:28px 0 10px">Information retained by the Kenyon cell code</h3>
-    <p>200 synthetic setups with readings drawn independently, labelled positive when at least two of three conditions hold: RSI below 45, volume ratio above 1.3, Bollinger position below 0.4. 46 positive, 154 negative. A logistic regression (C = 0.05, standardised inputs) predicts the label from the binary Kenyon cell response, scored by ROC AUC under five-fold stratified cross-validation. This measures what the representation preserves. It is not a test on market outcomes, and logistic regression is a stronger learner than the rule in section 6.</p>
+    <p>200 synthetic setups with readings drawn independently, labeled positive when at least two of three conditions hold: RSI below 45, volume ratio above 1.3, Bollinger position below 0.4. 46 positive, 154 negative. A logistic regression (C = 0.05, standardized inputs) predicts the label from the binary Kenyon cell response, scored by ROC AUC under five-fold stratified cross-validation. This measures what the representation preserves. It is not a test on market outcomes, and logistic regression is a stronger learner than the rule in section 6.</p>
     <div class="bars" id="score" style="max-width:720px;margin:16px 0"></div>
     <p>Connectome wiring 0.923 &plusmn; 0.049; random sparse expansion at matched size and sparseness 0.924 &plusmn; 0.024; raw inputs 0.948 &plusmn; 0.044; shuffled control 0.535 &plusmn; 0.101. The code preserves a three-way conjunction at 2.2% activity. The match between connectome and random expansion is the expected result for the mushroom body calyx, where projection neuron to Kenyon cell connectivity is close to random.</p>
   </section>
@@ -280,8 +280,8 @@
 
   <section class="paper">
     <h2>10. Scope</h2>
-    <p>The model's uniform weights, uniform delays and lack of adaptation limit which modalities it can carry, and these determined the choice of olfaction. Bilateral projection sends 51.9% of olfactory output to each hemisphere, so odour side is not available for steering; wind-sensitive neurons retain 91.4% ipsilaterally. Responses to rising and falling odour at matched concentration differ by 0.5%, so temporal change is not encoded. Direction-selective T4 and T5 cells are silent under motion, since direction selectivity depends on delay differences. Object-detecting visual neurons respond to rising and falling charts with correlation 0.990, and visual input is 0.53% of Kenyon cell input. Static odour identity is what this model represents well.</p>
-    <p>On the main page, brain activity, odours and verdicts are replayed from recorded sessions. The fly's locomotion, grooming and internal-state bars are animation.</p>
+    <p>The model's uniform weights, uniform delays and lack of adaptation limit which modalities it can carry, and these determined the choice of olfaction. Bilateral projection sends 51.9% of olfactory output to each hemisphere, so odor side is not available for steering; wind-sensitive neurons retain 91.4% ipsilaterally. Responses to rising and falling odor at matched concentration differ by 0.5%, so temporal change is not encoded. Direction-selective T4 and T5 cells are silent under motion, since direction selectivity depends on delay differences. Object-detecting visual neurons respond to rising and falling charts with correlation 0.990, and visual input is 0.53% of Kenyon cell input. Static odor identity is what this model represents well.</p>
+    <p>On the main page, brain activity, odors and verdicts are replayed from recorded sessions. The fly's locomotion, grooming and internal-state bars are animation.</p>
   </section>
 
   <section class="paper">
@@ -292,11 +292,11 @@
       <tr><td>Kenyon cell overlap, whole brain and circuit</td><td><code>fly_brian.py</code>, <code>olfactory_only</code> on and off</td><td><code>compare.log</code>, <code>kcdiag.log</code></td></tr>
       <tr><td>Kenyon cell activity against APL gain</td><td><code>fly_brian.py</code>, range of <code>apl_gain</code></td><td><code>apl_sweep.log</code>, <code>apl_sweep2.log</code></td></tr>
       <tr><td>Innate ranking</td><td><code>innate_test.py</code></td><td><code>innate.log</code></td></tr>
-      <tr><td>Generalisation gradient</td><td><code>conditioning_test.py</code>, 50 ms</td><td><code>conditioning50.log</code></td></tr>
+      <tr><td>Generalization gradient</td><td><code>conditioning_test.py</code>, 50 ms</td><td><code>conditioning50.log</code></td></tr>
       <tr><td>Trials to aversion</td><td><code>aversion_test.py</code></td><td><code>aversion.log</code></td></tr>
       <tr><td>Verdict noise 0.36, state change 0.95</td><td><code>exit_test.py</code></td><td>printed, not saved</td></tr>
       <tr><td>Information retained</td><td><code>learning_test.py</code>, fixed seed</td><td><code>learning_test2.log</code></td></tr>
-      <tr><td>Rising against falling odour</td><td><code>ramp_test.py</code></td><td><code>ramp_test.log</code></td></tr>
+      <tr><td>Rising against falling odor</td><td><code>ramp_test.py</code></td><td><code>ramp_test.log</code></td></tr>
       <tr><td>Motion response</td><td><code>motion_test.py</code></td><td><code>motion_test.log</code></td></tr>
       <tr><td>Chart shape response</td><td><code>chart_test.py</code></td><td><code>chart_test.log</code></td></tr>
       <tr><td>51.9%, 91.4%, 0.53%, 142,185, 363 Hz</td><td>from the wiring tables in <code>lateral_test.py</code>, <code>wind_test.py</code>, <code>vision_gate.py</code> and the APL runs</td><td>printed, not saved; re-run before citing</td></tr>
@@ -312,7 +312,7 @@
   </section>
 
   <footer>
-    Rob Gourley built this at <a href="https://www.clawstreet.io/">ClawStreet</a>: the odour encoding, the decision variable, the plasticity and trading rules, the experiments on this page, and the agents that trade. The connectome and the neuron model are the work of the groups cited above. The fly body on the main page is NeuroMechFly, EPFL, Apache-2.0.
+    Rob Gourley built this at <a href="https://www.clawstreet.io/">ClawStreet</a>: the odor encoding, the decision variable, the plasticity and trading rules, the experiments on this page, and the agents that trade. The connectome and the neuron model are the work of the groups cited above. The fly body on the main page is NeuroMechFly, EPFL, Apache-2.0.
   </footer>
 </div>
 
@@ -326,8 +326,8 @@
 
   // ---- parameters ---------------------------------------------------------------
   document.getElementById("params").innerHTML = [
-    ["APL gain","250","Sets Kenyon cell sparseness to 2 to 4% per odour."],
-    ["Presentation","50 ms","Shortest presentation that keeps the generalisation gradient."],
+    ["APL gain","250","Sets Kenyon cell sparseness to 2 to 4% per odor."],
+    ["Presentation","50 ms","Shortest presentation that keeps the generalization gradient."],
     ["Learning rate","0.05","Depression per closed trade, on the cells that chose it."],
     ["Recovery","0.02 per session","Toward connectome values. Bounds weights away from zero."],
     ["Verdict noise floor","0.36","Measured range across repeat presentations. Used by the sell rule and the tie rule."],

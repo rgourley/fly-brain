@@ -274,12 +274,6 @@
       <span class="note">Six readings, spread across 51 smell channels. The fly never learns which company it is.</span>
     </div>
     <div class="smell" id="smell"></div>
-    <div class="callout">
-      <div class="eyebrow">What the fly posted</div>
-      <div class="thought" id="thought">Six stocks went in. TSLA came out, barely.
-Sniffed TSLA and SOFI as 2.447 against 2.445. It cannot tell them apart today.
-Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did not commit.</div>
-    </div>
   </section>
 
 
@@ -399,7 +393,6 @@ Bought $3,059 of TSLA at half size. It liked TSLA and SOFI the same, so it did n
     onSniff: sym => { show(sym, true); barSniff(sym); if (bought) barPick(); }}) : null;
   let bought = false;
   document.getElementById("status").textContent = statusText(false);
-  if (META.thought) document.getElementById("thought").textContent = META.thought;
   if (META.botId) {
     // The profile carries ClawStreet's follow button; trades is the fly's full fill history.
     const profile = `https://www.clawstreet.io/agents/${META.botId}`;

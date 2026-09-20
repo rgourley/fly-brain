@@ -198,22 +198,29 @@ window.Fly3D = function (opts) {
 
   async function loadRig() {
     const rig = await fetch("model/rig.json").then(r => r.json());
-    // Cuticle is striped: each abdominal tergite is tan with a dark band along
-    // its rear edge. The rest of the body is one color per part.
-    const matFor = n => n.includes("eye") ? new THREE.MeshStandardMaterial({color: 0x80170a, roughness: 0.32})
+    // Cuticle colors of a male Drosophila melanogaster ("black belly"): honey-tan, a dark band along
+    // the rear edge of each abdominal tergite, and the last two tergites dark all over, which is what
+    // marks a male. The pigment is on the back; the underside stays pale. The brain here is a male's.
+    // The body scan, NeuroMechFly, is from a female, so the shape is hers and the coloring is his.
+    const matFor = n => n.includes("eye") ? new THREE.MeshStandardMaterial({color: 0x640c08, roughness: 0.32})
       : n.includes("wing") ? new THREE.MeshPhysicalMaterial({color: 0xd9dee6, transparent: true, opacity: 0.4, side: THREE.DoubleSide, roughness: 0.12, depthWrite: false})
       : n.includes("arista") ? new THREE.MeshStandardMaterial({color: 0x241a12, roughness: 0.6})
       : n.includes("haltere") ? new THREE.MeshStandardMaterial({color: 0x9e8052, roughness: 0.5})
       : /rostrum|haustellum/.test(n) ? new THREE.MeshStandardMaterial({color: 0x5c4021, roughness: 0.6})
-      : /_(coxa|trochanterfemur|tibia|tarsus)/.test(n) ? new THREE.MeshStandardMaterial({color: 0x5c4224, roughness: 0.6, envMapIntensity: 0.35})
+      : /_(coxa|trochanterfemur|tibia|tarsus)/.test(n) ? new THREE.MeshStandardMaterial({color: 0x6e4c20, roughness: 0.6, envMapIntensity: 0.35})
       : new THREE.MeshStandardMaterial({color: 0xffffff, vertexColors: true, roughness: 0.6, side: THREE.DoubleSide, envMapIntensity: 0.35});
-    const tan = new THREE.Color(0x8c6c3c), dark = new THREE.Color(0x241a0f);
+    const tan = new THREE.Color(0x946124), dark = new THREE.Color(0x0b0805);   // colors here are linear, so near-black has to be very low to read as black on screen
     function stripe(g, name) {
       const pos = g.attributes.position, n = pos.count, c = new Float32Array(n * 3);
-      let lo = Infinity, hi = -Infinity; for (let i = 0; i < n; i++) { const z = pos.getZ(i); lo = Math.min(lo, z); hi = Math.max(hi, z); }
+      let lo = Infinity, hi = -Infinity, ylo = Infinity, yhi = -Infinity;
+      for (let i = 0; i < n; i++) { const z = pos.getZ(i), y = pos.getY(i); lo = Math.min(lo, z); hi = Math.max(hi, z); ylo = Math.min(ylo, y); yhi = Math.max(yhi, y); }
       for (let i = 0; i < n; i++) {
         const f = (pos.getZ(i) - lo) / Math.max(1e-9, hi - lo);   // 0 at the rear of the part
-        let k = /abdomen[3456]/.test(name) ? (f < 0.42 ? 1 : f < 0.5 ? (0.5 - f) / 0.08 : 0) : /abdomen12/.test(name) ? (f < 0.12 ? 1 : 0) : 0;
+        const up = (pos.getY(i) - ylo) / Math.max(1e-9, yhi - ylo);   // 0 at the belly, 1 on the back
+        const dorsal = Math.max(0, Math.min(1, (up - 0.3) / 0.2));
+        const band = f < 0.36 ? 1 : f < 0.46 ? (0.46 - f) / 0.1 : 0;
+        let k = /abdomen[56]/.test(name) ? 1 : /abdomen[34]/.test(name) ? band : /abdomen12/.test(name) ? (f < 0.12 ? 1 : 0) : 0;
+        k *= dorsal;
         if (name === "c_thorax") k = 0.18 * (1 - f);   // a little darker toward the scutellum
         const col = tan.clone().lerp(dark, k); c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b;
       }

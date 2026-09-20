@@ -349,7 +349,8 @@ window.Fly3D = function (opts) {
   let flight = null, onArrive = null;   // flight: {from, to, s, len}
   const act = {feeding: false, groom: null, part: null, sniff: false};
   let heading = 0, speedNow = 0;
-  const say = s => caption && caption(s);
+  let said = "";
+  const say = s => { if (s !== said) { said = s; caption && caption(s); } };
   const onCard = (sym, spread = 0.8) => { const p = dish[sym]; return new THREE.Vector3(p.x + rnd(-1, 1) * CARD.w / 2 * spread, 0, p.z + rnd(-1, 1) * CARD.h / 2 * spread); };
   const nearby = (p, r) => new THREE.Vector3(p.x + rnd(-r, r), 0, p.z + rnd(-r, r));
   function takeOff(to) {
@@ -423,7 +424,7 @@ window.Fly3D = function (opts) {
   }
   function idle() { if (!exploring && mode === "idle") explore(1e9, null); }
 
-  const tmp = new THREE.Vector3();
+  const tmp = new THREE.Vector3(), walkTmp = new THREE.Vector3();
   function step(dt, now) {
     let airborne = false; speedNow = 0;
     // Needs drift up; flying costs the most, resting pays it back.
@@ -459,7 +460,7 @@ window.Fly3D = function (opts) {
       if (!w) { mode = "dwell"; dwellUntil = now + dwellMs; act.feeding = !exploring || dwellFeed; act.sniff = !exploring;
         if (!exploring && dish[current]) say(`Sniffing ${short(current)}`);
         if (onArrive) { const f = onArrive; onArrive = null; f(); } if (dwellFeed) say(needs.thirst > needs.hunger ? "Drinking" : "Feeding"); return false; }
-      const d = w.clone().sub(fly.position); d.y = 0; const dist = d.length();
+      const d = walkTmp.copy(w).sub(fly.position); d.y = 0; const dist = d.length();
       if (dist < 0.12) { waypoints.shift(); return false; }
       const want = Math.atan2(d.x, d.z); let diff = want - heading; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       const turn = Math.sign(diff) * Math.min(Math.abs(diff), dt * 5); heading += turn;
@@ -528,7 +529,6 @@ window.Fly3D = function (opts) {
     if (!reduce) motes.step(dt, t);
     updateCamera(dt, moving);
     renderer.render(scene, camera);
-    requestAnimationFrame(frame);
   }
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -536,7 +536,27 @@ window.Fly3D = function (opts) {
   }
   { const home = dish[pick] || dish[order[0]]; fly.position.set(home.x + 3, 0, home.z + 2); }
   window.__fly3d = {scene, camera, renderer, fly, portrait, snapshot, top: v => { debugTop = v; }, debug: () => ({mode, view, tilt, orbit, look: look.toArray(), wantLook: wantLook.toArray(), camPos: camPos.toArray(), waypoints: waypoints.length, act: {...act}, exploring, flight: flight && flight.s})};
-  requestAnimationFrame(frame);
+
+  // Run the loop only while the canvas is on screen and the tab is visible. A 3D view that keeps
+  // drawing after the reader has scrolled past it costs battery and GPU memory for nothing.
+  let raf = 0, onScreen = true, alive = true;
+  const tick = now => { raf = 0; if (!alive) return; frame(now); if (onScreen && !document.hidden) raf = requestAnimationFrame(tick); };
+  const wake = () => { if (alive && !raf && onScreen && !document.hidden) { last = performance.now(); raf = requestAnimationFrame(tick); } };
+  const watcher = new IntersectionObserver(es => { onScreen = es[0].isIntersecting; wake(); }, {rootMargin: "120px"});
+  watcher.observe(canvas); document.addEventListener("visibilitychange", wake);
+  // Free everything the GPU holds. A full page load does this anyway; a single-page app moving to
+  // another route does not, and that is where a 3D view leaks.
+  function dispose() {
+    alive = false; cancelAnimationFrame(raf); watcher.disconnect(); document.removeEventListener("visibilitychange", wake);
+    scene.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      for (const m of [].concat(o.material || [])) { for (const k in m) if (m[k] && m[k].isTexture) m[k].dispose(); m.dispose(); }
+    });
+    if (scene.environment) scene.environment.dispose();
+    renderer.dispose(); renderer.forceContextLoss();
+  }
+  addEventListener("pagehide", dispose, {once: true});
+  wake();
   // A portrait of the fly alone on a transparent ground, for avatars. Same model,
   // same materials and light as the scene. yaw and pitch are in radians, measured
   // from the fly's own heading, so yaw 0 looks it in the face.
@@ -600,5 +620,5 @@ window.Fly3D = function (opts) {
     if (act.sniff || act.feeding) return 0.35;
     return 0.08;
   }
-  return {visit, settle, goto, abort, explore, setView, activity, needs: () => ({...needs}), setHeld: h => { held = h.slice(); }, get view() { return view; }};
+  return {visit, settle, goto, abort, explore, setView, activity, dispose, needs: () => ({...needs}), setHeld: h => { held = h.slice(); }, get view() { return view; }};
 };

@@ -69,10 +69,19 @@
   .ov-tl p.mono { font-size: 11px; letter-spacing: .02em; color: var(--muted); }
   .ov-tl p { margin: 0; }
   .ov-tl { display: grid; gap: 6px; }
-  #flypick { font: 600 14px var(--sans); color: var(--text); background: rgba(255,255,255,.08); border: 1px solid var(--border); border-radius: 8px; padding: 6px 28px 6px 10px; cursor: pointer; appearance: none; -webkit-appearance: none;
-    background-image: linear-gradient(45deg, transparent 50%, var(--text-2) 50%), linear-gradient(135deg, var(--text-2) 50%, transparent 50%); background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
-  #flypick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  #flypick option { color: #111; }
+  /* A native select cannot weight or color parts of its label, so the picker is a button and a menu. */
+  .flypick { position: relative; }
+  .flypick > button { width: 100%; display: flex; align-items: baseline; gap: 10px; padding: 7px 10px; font: 400 14px var(--sans); text-align: left; background: rgba(255,255,255,.08); border-radius: 8px; }
+  .flypick .nm { font-weight: 600; }
+  .flypick .eq { color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .flypick .rt { font-variant-numeric: tabular-nums; }
+  .flypick .up { color: var(--brand); } .flypick .down { color: var(--neg); } .flypick .flat { color: var(--muted); }
+  .flypick .caret { margin-left: auto; align-self: center; width: 0; height: 0; border: 4px solid transparent; border-top-color: var(--text-2); border-bottom: 0; }
+  .flypick ul { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none; border-radius: 10px; background: rgba(22,22,26,.96); border: 1px solid var(--border); box-shadow: 0 12px 30px rgba(0,0,0,.45); }
+  .flypick li a { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; border-radius: 6px; font-size: 14px; color: var(--text); text-decoration: none; }
+  .flypick li a:hover, .flypick li a:focus-visible { background: var(--hover); outline: none; }
+  .flypick li a[aria-current="true"] { background: rgba(255,255,255,.06); }
+  :root[data-theme="light"] .flypick ul { background: rgba(255,255,255,.98); }
   .controls.small { margin-top: 10px; gap: 6px; }
   .controls.small button { padding: 5px 9px; font-size: 11px; border-radius: 6px; background: rgba(22,22,26,.7); backdrop-filter: blur(6px); }
   .controls.small .seg button { border-radius: 0; } .controls.small .seg button:first-child { border-radius: 6px 0 0 6px; } .controls.small .seg button:last-child { border-radius: 0 6px 6px 0; }
@@ -100,10 +109,9 @@
   .ov-bl { left: 32px; bottom: 22px; max-width: 560px; }
   .ov-br { right: 32px; bottom: 22px; }
   .brainwrap { position: relative; }
-  .flyhead { display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; background: rgba(13,13,16,.55); backdrop-filter: blur(8px); }
+  .flyhead { position: relative; z-index: 4; display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; background: rgba(13,13,16,.55); backdrop-filter: blur(8px); }
   :root[data-theme="light"] .flyhead { background: rgba(248,249,251,.6); }
   .flyhead p { margin: 0; font-size: 11px; letter-spacing: .02em; color: var(--muted); }
-  .flyhead #flypick { width: 100%; }
   .ov-brain { right: 32px; top: 22px; width: 440px; display: flex; flex-direction: column; gap: 6px; }
   #brain3d { width: 100%; height: 330px; display: block; border-radius: 12px; cursor: grab; background: rgba(13,13,16,.38); backdrop-filter: blur(10px); }
   :root[data-theme="light"] #brain3d { background: rgba(248,249,251,.55); }
@@ -255,7 +263,10 @@
     <canvas id="fly3d" aria-label="A fruit fly at a table of six charts"></canvas>
     <div class="ov ov-brain">
       <div class="flyhead">
-        <select id="flypick" aria-label="Choose a fly"><option>Fly 001</option></select>
+        <div class="flypick" id="flypick">
+          <button type="button" id="flybtn" aria-haspopup="true" aria-expanded="false" aria-label="Choose a fly"><span class="nm">Fly 001</span><span class="caret"></span></button>
+          <ul id="flymenu" hidden></ul>
+        </div>
         <p class="mono" id="status"></p>
       </div>
       <div class="brainwrap">
@@ -353,8 +364,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/RGBELoader.js"></script>
-<script src="fly3d.js?v=1789865230"></script>
-<script src="brain3d.js?v=1789865230"></script>
+<script src="fly3d.js?v=1789865729"></script>
+<script src="brain3d.js?v=1789865729"></script>
 <script>
 (async () => {
   // Switching flies reloads the page. Start at the top, not wherever the last one was scrolled to.
@@ -400,8 +411,7 @@
     const when = new Date(replay.when);
     META = {fly: id, botId: flies[id].bot_id, name: flies[id].name, cadence: flies[id].cadence, session: start.session, dry: !!replay.dry, flies: ids,
       // The picker shows how each fly is doing: equity and return as of its last session.
-      roster: ids.map(k => { const f = flies[k], r = f.return_pct;
-        return {id: k, label: f.equity == null ? f.name : `${f.name} · $${Math.round(f.equity).toLocaleString("en-US")} · ${r > 0 ? "+" : r < 0 ? "\u2212" : ""}${Math.abs(r || 0).toFixed(2)}%`}; }),
+      roster: ids.map(k => ({id: k, name: flies[k].name, equity: flies[k].equity, ret: flies[k].return_pct})),
       holdsNow: (holding.open || []).map(p => p.symbol),
       market: `${flies[id].universe === "crypto" ? "Crypto" : "US stocks"}, ${/^\d+h$/.test(flies[id].cadence) ? "every " + parseInt(flies[id].cadence) + " hours" : "daily"}`,
       date: when.toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"}) + (flies[id].cadence === "daily" ? "" : " " + when.toISOString().slice(11, 16) + " UTC"),
@@ -461,11 +471,21 @@
     document.getElementById("tradesLink").href = `${profile}/trades`;
   }
   {
-    const pick = document.getElementById("flypick");
-    pick.innerHTML = (META.roster || [{id: META.fly, label: META.name}]).map(f => `<option value="${f.id}"${f.id === META.fly ? " selected" : ""}>${f.label}</option>`).join("");
-    // A plain path plus the query: assigning location.search alone keeps a "#how" left over from the
-    // jump link, and the reloaded page would scroll down to it.
-    pick.onchange = () => { location.href = location.pathname + "?fly=" + pick.value; };
+    // Name in bold, balance in regular weight, return in green or red.
+    const label = f => {
+      const r = f.ret, tone = r > 0 ? "up" : r < 0 ? "down" : "flat";
+      return `<span class="nm">${f.name}</span>` + (f.equity == null ? "" :
+        `<span class="eq">$${Math.round(f.equity).toLocaleString("en-US")}</span><span class="rt ${tone}">${r > 0 ? "+" : r < 0 ? "\u2212" : ""}${Math.abs(r || 0).toFixed(2)}%</span>`);
+    };
+    const roster = META.roster || [{id: META.fly, name: META.name}];
+    const btn = document.getElementById("flybtn"), menu = document.getElementById("flymenu");
+    btn.innerHTML = label(roster.find(f => f.id === META.fly) || roster[0]) + (roster.length > 1 ? '<span class="caret"></span>' : "");
+    // A plain path plus the query, so a "#how" left over from the jump link does not scroll the new page down.
+    menu.innerHTML = roster.map(f => `<li><a href="${location.pathname}?fly=${f.id}"${f.id === META.fly ? ' aria-current="true"' : ""}>${label(f)}</a></li>`).join("");
+    const open = on => { menu.hidden = !on; btn.setAttribute("aria-expanded", String(on)); };
+    btn.addEventListener("click", () => { if (roster.length > 1) open(menu.hidden); });
+    document.addEventListener("click", e => { if (!e.target.closest("#flypick")) open(false); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") { open(false); btn.focus(); } });
   }
   if (fly3d) setInterval(() => { const n = fly3d.needs(); document.querySelectorAll("[data-need]").forEach(b => { b.style.width = Math.round(n[b.dataset.need] * 100) + "%"; }); }, 500);
   // Sessions run once a trading day. Count down to the next one.
@@ -570,7 +590,7 @@
       g.stroke();
       g.fillStyle = col("--muted"); g.font = "500 15px JetBrains Mono, monospace"; g.textBaseline = "top"; g.textAlign = "left";
       g.fillText("BRAIN ACTIVITY", 14, 8); g.textAlign = "right"; g.fillText(count ? `${count} of 4,064 cells fired` : "", c.width - 14, 8); g.textAlign = "left";
-      requestAnimationFrame(frame);
+      if (!document.hidden) requestAnimationFrame(frame); else document.addEventListener("visibilitychange", () => requestAnimationFrame(frame), {once: true});
     }
     requestAnimationFrame(frame);
     return {fire};
@@ -604,7 +624,7 @@
         g.fillStyle = col("--muted"); g.font = "500 13px JetBrains Mono, monospace"; g.textAlign = "center"; g.fillText(short(sym).slice(0, 5), x + (cw - 4) / 2, top + 4);
       });
       g.textAlign = "left";
-      requestAnimationFrame(frame);
+      if (!document.hidden) requestAnimationFrame(frame); else document.addEventListener("visibilitychange", () => requestAnimationFrame(frame), {once: true});
     }
     requestAnimationFrame(frame);
     return {fire, reset};

@@ -99,8 +99,27 @@ window.Brain3D = function (opts) {
     peds.forEach(p => lit(p, cellsLevel * pulse(p, since, 380, 900) * 0.8 * glow));
     comps.forEach((p, i) => lit(p, cellsLevel * pulse(p, since, 520 + (i % 15) * 25, 700) * 0.6 * glow));
     renderer.render(scene, camera);
-    requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
-  return {setSmell};
+
+  // Run the loop only while the canvas is on screen and the tab is visible. A 3D view that keeps
+  // drawing after the reader has scrolled past it costs battery and GPU memory for nothing.
+  let raf = 0, onScreen = true, alive = true;
+  const tick = now => { raf = 0; if (!alive) return; frame(now); if (onScreen && !document.hidden) raf = requestAnimationFrame(tick); };
+  const wake = () => { if (alive && !raf && onScreen && !document.hidden) { last = performance.now(); raf = requestAnimationFrame(tick); } };
+  const watcher = new IntersectionObserver(es => { onScreen = es[0].isIntersecting; wake(); }, {rootMargin: "120px"});
+  watcher.observe(canvas); document.addEventListener("visibilitychange", wake);
+  // Free everything the GPU holds. A full page load does this anyway; a single-page app moving to
+  // another route does not, and that is where a 3D view leaks.
+  function dispose() {
+    alive = false; cancelAnimationFrame(raf); watcher.disconnect(); document.removeEventListener("visibilitychange", wake);
+    scene.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      for (const m of [].concat(o.material || [])) { for (const k in m) if (m[k] && m[k].isTexture) m[k].dispose(); m.dispose(); }
+    });
+    if (scene.environment) scene.environment.dispose();
+    renderer.dispose(); renderer.forceContextLoss();
+  }
+  addEventListener("pagehide", dispose, {once: true});
+  wake();
+  return {setSmell, dispose};
 };

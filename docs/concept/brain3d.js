@@ -85,7 +85,7 @@ window.Brain3D = function (opts) {
   let last = performance.now();
   function frame(now) {
     const w = canvas.clientWidth, h = canvas.clientHeight;
-    if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (spin && !reduce) yaw += dt * 0.4;
     const dist = 980 * zoom * Math.max(1, 1.35 / (camera.aspect || 1.35));

@@ -11,7 +11,8 @@
   "upload": false,
   "equity": 100000.0,
   "return_pct": 0,
-  "as_of": "2026-09-19T23:16+00:00"
+  "as_of": "2026-09-19T23:16+00:00",
+  "minute_offset": 3
  },
  "002": {
   "name": "Fly 002",
@@ -25,6 +26,7 @@
   "upload": false,
   "equity": 100447.34,
   "return_pct": 0.45,
-  "as_of": "2026-09-20T00:30+00:00"
+  "as_of": "2026-09-20T00:30+00:00",
+  "minute_offset": 0
  }
 }

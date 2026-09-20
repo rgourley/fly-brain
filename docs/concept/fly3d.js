@@ -535,7 +535,7 @@ window.Fly3D = function (opts) {
     if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; slideNow = -1; camera.clearViewOffset(); camera.updateProjectionMatrix(); }
   }
   { const home = dish[pick] || dish[order[0]]; fly.position.set(home.x + 3, 0, home.z + 2); }
-  window.__fly3d = {scene, camera, renderer, fly, portrait, top: v => { debugTop = v; }, debug: () => ({mode, view, tilt, orbit, look: look.toArray(), wantLook: wantLook.toArray(), camPos: camPos.toArray(), waypoints: waypoints.length, act: {...act}, exploring, flight: flight && flight.s})};
+  window.__fly3d = {scene, camera, renderer, fly, portrait, snapshot, top: v => { debugTop = v; }, debug: () => ({mode, view, tilt, orbit, look: look.toArray(), wantLook: wantLook.toArray(), camPos: camPos.toArray(), waypoints: waypoints.length, act: {...act}, exploring, flight: flight && flight.s})};
   requestAnimationFrame(frame);
   // A portrait of the fly alone on a transparent ground, for avatars. Same model,
   // same materials and light as the scene. yaw and pitch are in radians, measured
@@ -564,6 +564,29 @@ window.Fly3D = function (opts) {
     hidden.forEach(o => { o.visible = true; }); scene.fog = fog; fly.position.copy(was.pos); fly.rotation.y = was.rot; brainM.opacity = was.glow;
     const c = document.createElement("canvas"); c.width = c.height = size; const g = c.getContext("2d"), img = g.createImageData(size, size);
     for (let y = 0; y < size; y++) img.data.set(px.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);   // GL rows run bottom-up
+    g.putImageData(img, 0, 0); return c;
+  }
+
+  // A staged still for figures: the fly tasting a card, the chart behind it. It does not wait for
+  // the animation, so it works when the tab is in the background. Renders to a target, with the
+  // lights turned down because a target skips the screen's tone mapping, and puts everything back.
+  function snapshot({w = 1600, h = 900, sym = pick || order[0], yaw = 2.5, pitch = 0.32, dist = 1.15} = {}) {
+    if (!R || !dish[sym]) return null;
+    const was = {pos: fly.position.clone(), rot: fly.rotation.y, glow: brainM.opacity, fog: scene.fog};
+    const lights = scene.children.filter(o => o.isLight), levels = lights.map(l => l.intensity);
+    lights.forEach(l => { l.intensity *= 0.52; }); scene.fog = null; brainM.opacity = 0;
+    fly.position.set(dish[sym].x - 2.2, 0, dish[sym].z + 1.4); fly.rotation.y = 0.5;
+    animateRig(0, 1, false, 0.011, {feeding: true, groom: null, part: null, sniff: true});
+    sun.position.set(18, 40, 12).add(fly.position); sun.target.position.copy(fly.position); sun.target.updateMatrixWorld(); scene.updateMatrixWorld(true);
+    const cam = new THREE.PerspectiveCamera(30, w / h, 0.02, 600), at = fly.position.clone().add(new THREE.Vector3(0.12, 0.1, 0));
+    cam.position.set(at.x + Math.sin(yaw) * Math.cos(pitch) * dist, at.y + Math.sin(pitch) * dist, at.z + Math.cos(yaw) * Math.cos(pitch) * dist); cam.lookAt(at);
+    const target = new THREE.WebGLRenderTarget(w, h, {samples: 4}); target.texture.encoding = THREE.sRGBEncoding;
+    renderer.setRenderTarget(target); renderer.clear(); renderer.render(scene, cam);
+    const px = new Uint8Array(w * h * 4); renderer.readRenderTargetPixels(target, 0, 0, w, h, px);
+    renderer.setRenderTarget(null); target.dispose();
+    lights.forEach((l, k) => { l.intensity = levels[k]; }); scene.fog = was.fog; brainM.opacity = was.glow; fly.position.copy(was.pos); fly.rotation.y = was.rot;
+    const c = document.createElement("canvas"); c.width = w; c.height = h; const g = c.getContext("2d"), img = g.createImageData(w, h);
+    for (let y = 0; y < h; y++) img.data.set(px.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);
     g.putImageData(img, 0, 0); return c;
   }
 

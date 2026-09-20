@@ -167,6 +167,9 @@
   .cap3d { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; padding: 10px 14px; font-size: 12px; color: var(--text-2); border-top: 1px solid var(--border); }
   footer { padding-top: 24px; font-size: 12px; line-height: 1.7; color: var(--muted); max-width: none; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  .fig { margin: 28px 0 4px; }
+  .fig img { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border); }
+  .fig figcaption { margin-top: 10px; font-size: 13px; line-height: 1.55; color: var(--muted); max-width: 80ch; }
   .paper p { margin-top: 12px; max-width: 70ch; font-size: 15px; line-height: 1.65; }
   .paper h2 { font-size: 20px; }
   .paper .tbl { margin: 16px 0; max-width: 860px; }
@@ -184,6 +187,11 @@
       <p class="note" style="margin-top:10px">Rob Gourley, <a href="https://www.clawstreet.io/" style="color:var(--brand);text-decoration:none">ClawStreet</a>. September 2026. Technical write-up.</p>
     </div>
   </header>
+
+  <figure class="fig">
+    <img src="figure-fly.jpg" width="1600" height="900" alt="A fruit fly standing on a candlestick chart with its proboscis lowered to the paper">
+    <figcaption>Figure 1. A fly sampling a chart. The fly is 3 mm long and the chart is a foot wide, both to scale. The body is NeuroMechFly, colored as a male. Its posture is animation. The choice of which chart to buy comes from the simulated circuit described below.</figcaption>
+  </figure>
 
   <section class="paper">
     <h2>Summary</h2>

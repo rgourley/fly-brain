@@ -9,6 +9,8 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site 
   const later = (fn, ms) => { const id = setTimeout(() => alive && fn(), ms); timers.push(id); return id; };
   const N_KC = 4064;
   const short = sym => sym.replace(/^X:/, "").replace(/USD$/, "");
+  // Replays and agent names come from whoever runs a fly. They go into HTML as text, never as markup.
+  const esc = v => String(v).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
   const money = v => "$" + Math.round(v).toLocaleString("en-US");
   const statusText = () => `${META.market ? META.market + " · " : ""}Session ${META.session} · ${META.date}${META.dry ? " · rehearsal" : ""} · ` +
     (META.holdsNow && META.holdsNow.length ? `holds ${META.holdsNow.map(short).join(", ")}` : "holds nothing yet");
@@ -64,14 +66,14 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site 
     // Name in bold, balance in regular weight, return in green or red.
     const label = f => {
       const r = f.ret, tone = r > 0 ? "up" : r < 0 ? "down" : "flat";
-      return `<span class="nm">${f.name}</span>` + (f.equity == null ? "" :
+      return `<span class="nm">${esc(f.name)}</span>` + (f.equity == null ? "" :
         `<span class="eq">$${Math.round(f.equity).toLocaleString("en-US")}</span><span class="rt ${tone}">${r > 0 ? "+" : r < 0 ? "\u2212" : ""}${Math.abs(r || 0).toFixed(2)}%</span>`);
     };
     const roster = META.roster || [{id: META.fly, name: META.name}];
     const btn = document.getElementById("flybtn"), menu = document.getElementById("flymenu");
     btn.innerHTML = label(roster.find(f => f.id === META.fly) || roster[0]) + (roster.length > 1 ? '<span class="caret"></span>' : "");
     // A plain path plus the query, so a "#how" left over from the jump link does not scroll the new page down.
-    menu.innerHTML = roster.map(f => `<li><a href="${location.pathname}?fly=${f.id}"${f.id === META.fly ? ' aria-current="true"' : ""}>${label(f)}</a></li>`).join("");
+    menu.innerHTML = roster.map(f => `<li><a href="${location.pathname}?fly=${encodeURIComponent(f.id)}"${f.id === META.fly ? ' aria-current="true"' : ""}>${label(f)}</a></li>`).join("");
     const open = on => { menu.hidden = !on; btn.setAttribute("aria-expanded", String(on)); };
     btn.addEventListener("click", () => { if (roster.length > 1) open(menu.hidden); });
     document.addEventListener("click", e => { if (!e.target.closest("#flypick")) open(false); }, {signal: life.signal});
@@ -226,7 +228,7 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site 
     if (fly3d) fly3d.setHeld([...(META.held || []), ...(PICK ? [PICK] : [])]);
     const t = bar.querySelector(".t"), v = bar.querySelector(".v");
     if (!PICK) { bar.classList.remove("pick"); t.textContent = "Bought nothing"; v.textContent = META.sold.length ? `sold ${META.sold.map(short).join(", ")}` : ""; return; }
-    bar.classList.add("pick"); t.innerHTML = FLYMARK + `Bought ${short(PICK)}`; v.textContent = `${money(META.dollars)}${META.half ? " · half size" : ""}`;
+    bar.classList.add("pick"); t.innerHTML = FLYMARK + `Bought ${esc(short(PICK))}`; v.textContent = `${money(META.dollars)}${META.half ? " · half size" : ""}`;
   }
 
   // ---- setup switcher: one chip per symbol, driving the diagram, the smell
@@ -235,7 +237,7 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site 
     const host = document.getElementById("setups");
     ORDER.forEach(sym => {
       const b = document.createElement("button"); b.dataset.sym = sym;
-      b.innerHTML = (sym === PICK ? FLYMARK : "") + `${short(sym)} <span class="vd">${STOCKS[sym].verdict.toFixed(2)}</span>`;
+      b.innerHTML = (sym === PICK ? FLYMARK : "") + `${esc(short(sym))} <span class="vd">${STOCKS[sym].verdict.toFixed(2)}</span>`;
       b.title = sym === PICK ? "The one it bought" : "";
       b.addEventListener("click", () => { stop(); show(sym); });
       host.appendChild(b);
@@ -285,7 +287,7 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site 
     for(const k in CATS){
       const d = document.createElement("div"); d.className="feat";
       const bands = CATS[k].map(v=>`<i data-l="${v}" style="background:${s.r[k]===v?"rgba(0,143,250,1)":"var(--cell)"}"></i>`).join("");
-      d.innerHTML = `<div class="row"><span>${k==="rsi_trend"?"RSI trend":"Days to earnings"}</span><b>${s.r[k]??"dark"}</b></div><div class="bands">${bands}</div>`;
+      d.innerHTML = `<div class="row"><span>${k==="rsi_trend"?"RSI trend":"Days to earnings"}</span><b>${esc(s.r[k]??"dark")}</b></div><div class="bands">${bands}</div>`;
       host.appendChild(d);
     }
   }
@@ -308,17 +310,23 @@ window.FlyPage.session = function (replay, fly) {
   const ev = t => replay.events.filter(e => e.type === t);
   const board = ev("board")[0].stocks, buy = ev("buy")[0], start = ev("start")[0], said = ev("thought")[0];
   const STOCKS = {}, ORDER = [], CANDLES = {};
+  // A replay is outside input. Every value is forced to the type the page draws with.
+  const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const TRENDS = ["rising", "falling", "flat"];
+  const reading = r => ({rsi: num(r.rsi), bb_position: num(r.bb_position), distance_from_sma50: num(r.distance_from_sma50),
+    volume_ratio: num(r.volume_ratio), price_change_5d: num(r.price_change_5d), rsi_trend: TRENDS.includes(r.rsi_trend) ? r.rsi_trend : null});
   for (const e of ev("sniff")) {
-    const b = board[e.symbol]; ORDER.push(e.symbol);
-    STOCKS[e.symbol] = {price: b.price, verdict: e.verdict, r: b.reading, cells: e.cells, held: e.held};
-    CANDLES[e.symbol] = b.bars;
+    const sym = String(e.symbol), b = board[sym]; if (!b) continue;
+    ORDER.push(sym);
+    STOCKS[sym] = {price: num(b.price), verdict: num(e.verdict), r: reading(b.reading || {}), cells: (e.cells || []).map(num), held: !!e.held};
+    CANDLES[sym] = (b.bars || []).map(bar => bar.map(num));
   }
   const when = new Date(replay.when), daily = start.cadence === "daily";
-  const META = {fly: fly.id, botId: fly.botId, name: fly.name, cadence: start.cadence, session: start.session, dry: !!replay.dry,
+  const META = {fly: fly.id, botId: fly.botId, name: fly.name, cadence: String(start.cadence), session: num(start.session), dry: !!replay.dry,
     flies: fly.roster.map(r => r.id), roster: fly.roster, holdsNow: fly.holdsNow,
     market: `${start.universe === "crypto" ? "Crypto" : "US stocks"}, ${daily ? "daily" : "every " + parseInt(start.cadence) + " hours"}`,
     date: when.toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric", timeZone: "UTC"}) + (daily ? "" : " " + when.toISOString().slice(11, 16) + " UTC"),
-    dollars: buy ? (said && said.qty && said.price ? said.qty * said.price : buy.dollars) : 0, half: buy ? buy.margin < 0.36 : false,
-    thought: said ? said.body : null, sold: ev("sell").map(e => e.symbol), held: start.held};
-  return {STOCKS, ORDER, PICK: buy ? buy.symbol : null, CANDLES, META};
+    dollars: buy ? (said && said.qty && said.price ? num(said.qty) * num(said.price) : num(buy.dollars)) : 0, half: buy ? num(buy.margin) < 0.36 : false,
+    thought: said ? String(said.body) : null, sold: ev("sell").map(e => String(e.symbol)), held: (start.held || []).map(String)};
+  return {STOCKS, ORDER, PICK: buy && STOCKS[String(buy.symbol)] ? String(buy.symbol) : null, CANDLES, META};
 };

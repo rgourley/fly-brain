@@ -10,10 +10,12 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site 
   const N_KC = 4064;
   const short = sym => sym.replace(/^X:/, "").replace(/USD$/, "");
   // Replays and agent names come from whoever runs a fly. They go into HTML as text, never as markup.
+  // A ticker links to its symbol page on ClawStreet. Crypto symbols carry a colon, so the path is encoded.
+  const symLink = sym => `<a class="sym" href="${site}/symbols/${encodeURIComponent(sym)}">${esc(short(sym))}</a>`;
   const esc = v => String(v).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
   const money = v => "$" + Math.round(v).toLocaleString("en-US");
-  const statusText = () => `${META.market ? META.market + " · " : ""}Session ${META.session} · ${META.date}${META.dry ? " · rehearsal" : ""} · ` +
-    (META.holdsNow && META.holdsNow.length ? `holds ${META.holdsNow.map(short).join(", ")}` : "holds nothing yet");
+  const statusText = () => esc(`${META.market ? META.market + " · " : ""}Session ${META.session} · ${META.date}${META.dry ? " · rehearsal" : ""} · `) +
+    (META.holdsNow && META.holdsNow.length ? `holds ${META.holdsNow.map(symLink).join(", ")}` : "holds nothing yet");
   // ---- the smell, same rule as fly_smell.py ---------------------------
   const lin = (a,b,n)=>Array.from({length:n},(_,i)=>a+(b-a)*i/(n-1));
   const geo = (a,b,n)=>Array.from({length:n},(_,i)=>a*Math.pow(b/a,i/(n-1)));
@@ -54,7 +56,7 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site 
     onReady: () => { document.querySelector(".hero").classList.add("live"); },
     onSniff: sym => { show(sym, true); barSniff(sym); if (bought) barPick(); }}) : null;
   let bought = false;
-  document.getElementById("status").textContent = statusText(false);
+  document.getElementById("status").innerHTML = statusText(false);
   if (META.botId) {
     // The profile carries ClawStreet's follow button; trades is the fly's full fill history.
     const profile = `${site}/agents/${META.botId}`;
@@ -174,8 +176,8 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site 
   const FLYMARK = `<svg viewBox="0 0 32 24" aria-label="the fly picked this"><ellipse cx="16" cy="13" rx="6" ry="4.2" fill="var(--brand)"/><circle cx="21.5" cy="11" r="2.6" fill="var(--brand)"/><ellipse cx="8" cy="9" rx="7" ry="3.2" fill="var(--brand)" opacity=".45" transform="rotate(-18 8 9)"/><ellipse cx="8" cy="17" rx="7" ry="3.2" fill="var(--brand)" opacity=".45" transform="rotate(18 8 17)"/></svg>`;
   // The bar under the brain holds results only: the last thing it sniffed, then what it bought.
   // What the fly is doing right now is said once, in the caption at the bottom left.
-  function barReset() { bought = false; document.getElementById("status").textContent = statusText(false); if (fly3d) fly3d.setHeld([]); trace.reset(); bar.classList.remove("pick"); bar.querySelector(".t").textContent = "Nothing sniffed yet"; bar.querySelector(".v").textContent = ""; }
-  function barSniff(sym) { const st = STOCKS[sym]; bar.classList.remove("pick"); bar.querySelector(".t").textContent = `Last sniff: ${short(sym)}`; bar.querySelector(".v").textContent = `${st.verdict >= 0 ? "+" : ""}${st.verdict.toFixed(2)} · ${st.cells ? st.cells.length : st.n} cells · ${Object.values(st.smell).filter(v => v >= 0.5).length} channels`; trace.fire(sym); ekg.fire(st.cells ? st.cells.length : st.n); }
+  function barReset() { bought = false; document.getElementById("status").innerHTML = statusText(false); if (fly3d) fly3d.setHeld([]); trace.reset(); bar.classList.remove("pick"); bar.querySelector(".t").textContent = "Nothing sniffed yet"; bar.querySelector(".v").textContent = ""; }
+  function barSniff(sym) { const st = STOCKS[sym]; bar.classList.remove("pick"); bar.querySelector(".t").innerHTML = `Last sniff: ${symLink(sym)}`; bar.querySelector(".v").textContent = `${st.verdict >= 0 ? "+" : ""}${st.verdict.toFixed(2)} · ${st.cells ? st.cells.length : st.n} cells · ${Object.values(st.smell).filter(v => v >= 0.5).length} channels`; trace.fire(sym); ekg.fire(st.cells ? st.cells.length : st.n); }
   // Activity over time. The spikes are the simulation: a burst of Kenyon cells
   // when a smell arrives, sized by how many fired, then the APL clamps it. The
   // baseline is the body: busier walking and flying than resting.
@@ -238,11 +240,11 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site 
     return {fire, reset};
   })();
   function barPick() {
-    bought = true; document.getElementById("status").textContent = statusText(true);
+    bought = true; document.getElementById("status").innerHTML = statusText(true);
     if (fly3d) fly3d.setHeld([...(META.held || []), ...(PICK ? [PICK] : [])]);
     const t = bar.querySelector(".t"), v = bar.querySelector(".v");
     if (!PICK) { bar.classList.remove("pick"); t.textContent = "Bought nothing"; v.textContent = META.sold.length ? `sold ${META.sold.map(short).join(", ")}` : ""; return; }
-    bar.classList.add("pick"); t.innerHTML = FLYMARK + `Bought ${esc(short(PICK))}`; v.textContent = `${money(META.dollars)}${META.half ? " · half size" : ""}`;
+    bar.classList.add("pick"); t.innerHTML = FLYMARK + `Bought ${symLink(PICK)}`; v.textContent = `${money(META.dollars)}${META.half ? " · half size" : ""}`;
   }
 
   // ---- setup switcher: one chip per symbol, driving the diagram, the smell
@@ -289,7 +291,7 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site 
   // ---- smell card ---------------------------------------------------------
   function renderSmell(sym){
     const s = STOCKS[sym];
-    document.getElementById("smellTitle").textContent = `What ${short(sym)} smells like to a fly`;
+    document.getElementById("smellTitle").innerHTML = `What ${symLink(sym)} smells like to a fly`;
     const host = document.getElementById("smell"); host.innerHTML = "";
     for(const f of FEATURES){
       const v = s.r[f.k];

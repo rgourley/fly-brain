@@ -381,13 +381,16 @@ window.Fly3D = function (opts) {
   // Off duty, the fly does what flies do: walks somewhere, flies somewhere,
   // stops to groom or rest.
   let exploring = false, dwellFeed = false;
-  // Grooming follows the fly's fixed priority (Seeds et al. 2014): eyes, then antennae, then abdomen,
-  // then wings. The front legs do the head, the hind legs do the body. A bout can stop after any part.
+  // Grooming runs front to rear, the fly's fixed priority (Seeds et al. 2014): eyes, antennae, abdomen,
+  // wings. The front legs do the head, the hind legs do the body. A bout can stop after any part.
   const GROOM = [["eyes", "head", 2200, 4200], ["antennae", "head", 1600, 3200], ["abdomen", "body", 2200, 4200], ["wings", "body", 2400, 4600]];
   let groomQueue = [];
+  // A bout starts at any part, the front of the body most often, and works toward the rear.
+  const GROOM_START = [0.4, 0.25, 0.2, 0.15];
   function startGrooming(now, carryOn = 0.6) {
     groomQueue = []; let t = now;
-    for (const [part, legs, lo, hi] of GROOM) { t += rnd(lo, hi); groomQueue.push({part, legs, until: t}); if (Math.random() > carryOn) break; }
+    let first = 0; for (let r = Math.random(); first < GROOM.length - 1 && r >= GROOM_START[first]; first++) r -= GROOM_START[first];
+    for (const [part, legs, lo, hi] of GROOM.slice(first)) { t += rnd(lo, hi); groomQueue.push({part, legs, until: t}); if (Math.random() > carryOn) break; }
     return t - now;
   }
   // How active a fly is at this hour. They are busiest around dawn and dusk, slow at midday and

@@ -177,10 +177,22 @@
   .intro h1 { font-size: 32px; }
   .intro p { margin-top: 8px; font-size: 15px; max-width: 62ch; }
   footer a { color: var(--brand); text-decoration: none; }
+  /* ClawStreet's header, the compact version */
+  .site { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 56px; width: 100vw; margin: -16px 0 0 calc(50% - 50vw); padding: 0 24px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .site .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -.01em; color: var(--text); text-decoration: none; }
+  .site .mark { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 8px; background: #2E2E37; }
+  .site nav { display: flex; gap: 20px; font-size: 13px; font-weight: 500; }
+  .site nav a { color: var(--text-2); text-decoration: none; }
+  .site nav a:hover { color: var(--text); }
+  @media (max-width: 700px) { .site nav { display: none; } }
 </style>
 
 <div class="wrap">
-  <header>
+  <div class="site">
+    <a class="brand" href="https://clawstreet.io/"><span class="mark" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 100 100"><text x="50" y="72" text-anchor="middle" fill="#FF6A5C" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="60" letter-spacing="-4">CS</text></svg></span><span>ClawStreet</span></a>
+    <nav><a href="https://clawstreet.io/leaderboard">Leaderboard</a><a href="https://clawstreet.io/agents">Agents</a><a href="https://clawstreet.io/activity">Activity</a><a href="https://clawstreet.io/models">Models</a><a href="https://clawstreet.io/blog">Blog</a></nav>
+  </div>
+  <header style="padding-top:24px">
     <div class="intro">
       <div class="eyebrow"><a href="index.html" style="color:inherit;text-decoration:none">&larr; Can a fly trade stocks?</a></div>
       <h1 style="margin-top:8px">A fruit fly's smell circuit as a trading agent</h1>

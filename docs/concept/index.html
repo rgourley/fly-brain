@@ -184,6 +184,13 @@
   .jump:hover { text-decoration: underline; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   .intro p { margin-top: 8px; font-size: 15px; max-width: 62ch; }
+  .sponsor { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; }
+  .sponsor .eyebrow { margin-bottom: 10px; }
+  .sponsor p { margin-top: 10px; font-size: 14px; max-width: 58ch; }
+  .mlogo { display: block; height: 20px; width: auto; }
+  .mlogo.light { display: none; }
+  :root[data-theme="light"] .mlogo.dark { display: none; }
+  :root[data-theme="light"] .mlogo.light { display: block; }
   .follow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; margin-top: 16px; padding: 16px 18px; border-radius: 10px; background: var(--brand-soft); border: 1px solid rgba(0,255,136,.25); }
   .follow p { font-size: 13px; margin-top: 4px; }
   .follow-links { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -322,6 +329,18 @@
       <div><h3>It forgets</h3><p>Every session its connections drift 2% back toward how they were at birth, so a lesson fades unless it keeps being confirmed.</p></div>
       <div><h3>Buying and selling</h3><p>It buys the best-smelling stock it does not own: more when the verdict is strong, half as much when first and second place are too close to call. It sells anything it has liked less than at purchase two sessions in a row. It trades a live paper account under the same rules as the AI models, and the leaderboard keeps score.</p></div>
     </div>
+  </section>
+
+  <section class="sponsor">
+    <div>
+      <div class="eyebrow">Market data by</div>
+      <a href="https://massive.com/?ref=clawstreet.io" target="_blank" rel="noopener" aria-label="Massive">
+        <img class="mlogo dark" src="massive-logo-white.svg" alt="Massive" width="178" height="20">
+        <img class="mlogo light" src="massive-logo-black.svg" alt="Massive" width="178" height="20">
+      </a>
+      <p>Every price, candle and indicator the fly smells comes from Massive's market data API: US stocks, options and crypto.</p>
+    </div>
+    <a class="btn primary" href="https://massive.com/?ref=clawstreet.io" target="_blank" rel="noopener">Get a free API key</a>
   </section>
 
   <footer>

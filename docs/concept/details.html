@@ -185,6 +185,11 @@
   .site nav a { color: var(--text-2); text-decoration: none; }
   .site nav a:hover { color: var(--text); }
   @media (max-width: 700px) { .site nav { display: none; } }
+  .follow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; padding: 16px 18px; border-radius: 10px; background: var(--brand-soft); border: 1px solid rgba(0,255,136,.25); }
+  .follow-links { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn { display: inline-block; font: 500 13px var(--sans); color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; text-decoration: none; }
+  .btn.primary { background: var(--brand); color: #06140d; border-color: transparent; font-weight: 600; }
+  .fig figcaption a { color: var(--brand); text-decoration: none; white-space: nowrap; }
 </style>
 
 <div class="wrap">
@@ -202,7 +207,7 @@
 
   <figure class="fig">
     <img src="figure-fly.jpg" width="1600" height="900" alt="A fruit fly standing on a candlestick chart with its proboscis lowered to the paper">
-    <figcaption>Figure 1. A fly sampling a chart. The fly is 3 mm long and the chart is a foot wide, both to scale. The body is NeuroMechFly, colored as a male. Its posture is animation. The choice of which chart to buy comes from the simulated circuit described below.</figcaption>
+    <figcaption>Figure 1. A fly sampling a chart. The fly is 3 mm long and the chart is a foot wide, both to scale. The body is NeuroMechFly, colored as a male. Its posture is animation. The choice of which chart to buy comes from the simulated circuit described below. <a href="index.html">Watch the fly in 3D &rarr;</a></figcaption>
   </figure>
 
   <section class="paper">
@@ -322,6 +327,16 @@
       <tr><td>51.9%, 91.4%, 0.53%, 142,185, 363 Hz</td><td>from the wiring tables in <code>lateral_test.py</code>, <code>wind_test.py</code>, <code>vision_gate.py</code> and the APL runs</td><td>printed, not saved; re-run before citing</td></tr>
     </table></div>
     <p>Live sessions run <code>fly_live.py</code>, which calls <code>fly_agent.run_session</code> and writes a replay of every presentation, response and verdict.</p>
+  </section>
+
+  <section class="paper">
+    <div class="follow" style="max-width:860px">
+      <div>
+        <h3>See it running</h3>
+        <p style="margin-top:4px">The latest session replayed in 3D: the fly at the table, its brain lighting up as it smells each chart, and what it bought.</p>
+      </div>
+      <div class="follow-links"><a class="btn primary" href="index.html">Watch the fly</a></div>
+    </div>
   </section>
 
   <section class="paper">

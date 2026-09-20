@@ -5,7 +5,7 @@
 // from the same replay that drives the schematic. The lateral horns are drawn
 // dim for orientation; the brain shell is a ghost around them.
 window.Brain3D = function (opts) {
-  const {canvas, col, channels} = opts;
+  const {canvas, col, channels, base = ""} = opts;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const renderer = new THREE.WebGLRenderer({canvas, antialias: true, alpha: true});
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setClearColor(0x000000, 0);
@@ -24,7 +24,7 @@ window.Brain3D = function (opts) {
   const glom = {}, comps = [];
   const calyces = [], peds = []; const focus = new THREE.Vector3(0, 0, 0);
   async function load() {
-    const [meta, bin] = await Promise.all([fetch("model/brain/brain.json?v=1789846451").then(r => r.json()), fetch("model/brain/brain.bin?v=1789846451").then(r => r.arrayBuffer())]);
+    const [meta, bin] = await Promise.all([fetch(base + "model/brain/brain.json").then(r => r.json()), fetch(base + "model/brain/brain.bin").then(r => r.arrayBuffer())]);
     for (const m of meta.meshes) {
       const pos = new Float32Array(bin, m.offset, m.vertices * 3), idx = new Uint32Array(bin, m.offset + m.vertices * 12, m.triangles * 3);
       const g = new THREE.BufferGeometry();

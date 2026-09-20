@@ -10,7 +10,7 @@
 // The right legs carry mirrored yaw and roll angles in rig.json, the way
 // flygym mirrors them, so one axis set poses both sides.
 window.Fly3D = function (opts) {
-  const {canvas, stocks, order, candles, pick, col, caption, onSniff} = opts;
+  const {canvas, stocks, order, candles, pick, col, caption, onSniff, base = ""} = opts;
   let held = [];   // what it owns; off duty it goes back to check on these
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const BODY = 0.3, WALK = 1.0, FLIGHT = 16, AIR = 5;
@@ -41,14 +41,14 @@ window.Fly3D = function (opts) {
   // Room light from an HDRI, for reflections and the soft ambient a room has.
   if (THREE.RGBELoader) {
     const pmrem = new THREE.PMREMGenerator(renderer); pmrem.compileEquirectangularShader();
-    new THREE.RGBELoader().setDataType(THREE.UnsignedByteType).load("textures/lythwood_room_1k.hdr", tex => {
+    new THREE.RGBELoader().setDataType(THREE.UnsignedByteType).load(base + "textures/lythwood_room_1k.hdr", tex => {
       scene.environment = pmrem.fromEquirectangular(tex).texture; tex.dispose(); pmrem.dispose();
     });
   }
 
   // ---- the table ----------------------------------------------------------
   const texLoader = new THREE.TextureLoader();
-  const grain = texLoader.load("textures/wood_nor_gl.jpg", t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; });
+  const grain = texLoader.load(base + "textures/wood_nor_gl.jpg", t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; });
   // A 1k scan of a whole table is a millimeter per texel. To a 3 mm fly that is
   // a blur, so the scan's own grain is tiled on top at a finer scale.
   function detail(mat, map, scale, strength) {
@@ -63,7 +63,7 @@ window.Fly3D = function (opts) {
   }
   let tableTop = 0;
   if (THREE.GLTFLoader) {
-    new THREE.GLTFLoader().load("model/table/wooden_table_02.gltf", g => {
+    new THREE.GLTFLoader().load(base + "model/table/wooden_table_02.gltf", g => {
       const t = g.scene; t.scale.setScalar(100);
       t.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(t); t.position.y = -box.max.y; tableTop = 0;
@@ -78,7 +78,7 @@ window.Fly3D = function (opts) {
   // stands 80 cm high on a parquet floor that fades out at its edge into the backdrop.
   const ROOM = {floor: -80};
   {
-    const backdrop = texLoader.load("textures/room_backdrop.jpg", t => { t.encoding = THREE.sRGBEncoding; });
+    const backdrop = texLoader.load(base + "textures/room_backdrop.jpg", t => { t.encoding = THREE.sRGBEncoding; });
     const dome = new THREE.Mesh(new THREE.SphereGeometry(520, 48, 32),
       new THREE.MeshBasicMaterial({map: backdrop, side: THREE.BackSide, fog: false, toneMapped: false, color: 0xcfcac2, depthWrite: false}));
     dome.position.y = 30; dome.rotation.y = 0.9; dome.renderOrder = -1; scene.add(dome);
@@ -87,7 +87,7 @@ window.Fly3D = function (opts) {
       const g = x.createRadialGradient(128, 128, 40, 128, 128, 128); g.addColorStop(0, "#fff"); g.addColorStop(0.55, "#bbb"); g.addColorStop(1, "#000");
       x.fillStyle = g; x.fillRect(0, 0, 256, 256); return new THREE.CanvasTexture(c);
     })();
-    const parquet = texLoader.load("textures/diagonal_parquet_diff_1k.jpg", t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3.4, 3.4); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; });
+    const parquet = texLoader.load(base + "textures/diagonal_parquet_diff_1k.jpg", t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3.4, 3.4); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; });
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshStandardMaterial({map: parquet, alphaMap: fade, transparent: true, roughness: 0.8, depthWrite: false}));
     floor.rotation.x = -Math.PI / 2; floor.position.y = ROOM.floor; floor.receiveShadow = true; scene.add(floor);
   }
@@ -208,7 +208,7 @@ window.Fly3D = function (opts) {
   }
 
   async function loadRig() {
-    const rig = await fetch("model/rig.json").then(r => r.json());
+    const rig = await fetch(base + "model/rig.json").then(r => r.json());
     // Cuticle colors of a male Drosophila melanogaster ("black belly"): honey-tan, a dark band along
     // the rear edge of each abdominal tergite, and the last two tergites dark all over, which is what
     // marks a male. The pigment is on the back; the underside stays pale. The brain here is a male's.
@@ -242,7 +242,7 @@ window.Fly3D = function (opts) {
       g.setAttribute("color", new THREE.BufferAttribute(c, 3)); return g;
     }
     const geo = {};
-    await Promise.all([...new Set(Object.values(rig.mesh))].map(async m => { geo[m] = parseSTL(await fetch(`model/${m}.stl`).then(r => r.arrayBuffer())); }));
+    await Promise.all([...new Set(Object.values(rig.mesh))].map(async m => { geo[m] = parseSTL(await fetch(`${base}model/${m}.stl`).then(r => r.arrayBuffer())); }));
     const nodes = {}; const d = Math.PI / 180;
     for (const name of Object.keys(rig.bodies)) {
       const b = rig.bodies[name]; const node = new THREE.Group(); node.name = name;

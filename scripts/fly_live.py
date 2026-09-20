@@ -335,7 +335,8 @@ def main() -> None:
 
     before = quotes(key, list(board))
     began = time.monotonic()
-    result = run_session(board, closed, dry_run=not args.go, fly_id=args.fly, when=when, account=account, record=args.record)
+    result = run_session(board, closed, dry_run=not args.go, fly_id=args.fly, when=when, account=account, record=args.record,
+                         universe=row["universe"], cadence=row["cadence"])
     thinking = time.monotonic() - began
     order = result["order"]
     qty = price = None

@@ -166,7 +166,8 @@ def bars_from_history(entry: dict, n: int = 20) -> list[list[float]]:
 def run_session(board: dict[str, dict], closed: dict[str, bool],
                 dry_run: bool = True, day: date | None = None,
                 fly_id: str = "001", when: datetime | None = None,
-                account: float = ACCOUNT, record: bool = False) -> dict:
+                account: float = ACCOUNT, record: bool = False,
+                universe: str = "stocks", cadence: str = "daily") -> dict:
     """One decision. `closed` maps a symbol to whether its trade made money."""
     when = when or datetime.now(timezone.utc)
     day = day or when.date()
@@ -175,8 +176,9 @@ def run_session(board: dict[str, dict], closed: dict[str, bool],
     kc_index, kc_bodies = kenyon_cells(fly)
     memory = from_connectome(kc_bodies, fly_id)
     memory.load()
+    # The page reads the market and the schedule from the replay, not from a local manifest.
     rec.add("start", session=memory.sessions + 1, held=sorted(memory.held()),
-            drift=round(memory.drift(), 5))
+            drift=round(memory.drift(), 5), universe=universe, cadence=cadence)
     # Everything the page needs to draw the table comes with the replay.
     rec.add("board", stocks={sym: {"reading": reading_from_history(e),
                                    "price": e.get("current_price"),

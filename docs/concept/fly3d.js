@@ -10,7 +10,7 @@
 // The right legs carry mirrored yaw and roll angles in rig.json, the way
 // flygym mirrors them, so one axis set poses both sides.
 window.Fly3D = function (opts) {
-  const {canvas, stocks, order, candles, pick, col, caption, onSniff, base = ""} = opts;
+  const {canvas, stocks, order, candles, pick, col, caption, onSniff, onReady, base = ""} = opts;
   let held = [];   // what it owns; off duty it goes back to check on these
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const BODY = 0.3, WALK = 1.0, FLIGHT = 16, AIR = 5;
@@ -22,11 +22,13 @@ window.Fly3D = function (opts) {
 
   const rnd = (a, b) => a + Math.random() * (b - a);
   const renderer = new THREE.WebGLRenderer({canvas, antialias: true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  // Phones get a lighter scene: fewer pixels and no shadow pass.
+  const lite = matchMedia("(max-width: 860px)").matches;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, lite ? 1.5 : 2));
   renderer.setClearColor(0x0b0b0e, 1);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.78;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = !lite; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene();
   scene.fog = null;   // the blurred backdrop does the job fog was doing
   const camera = new THREE.PerspectiveCamera(32, 2, 0.12, 900);
@@ -292,7 +294,7 @@ window.Fly3D = function (opts) {
     nodes["c_head"].add(brain); brain.position.set(0, 0.05, 0.08);
     fly.add(holder); R = rigObj;
   }
-  loadRig().catch(e => console.warn("rig not loaded", e));
+  loadRig().then(() => onReady && onReady()).catch(e => console.warn("rig not loaded", e));
 
   const ease = (a, b, dt, k) => a + (b - a) * Math.min(1, dt * k);
   // Speed in units per second. Airborne folds the legs and opens the wings.

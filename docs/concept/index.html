@@ -141,6 +141,15 @@
     .ov-tl { max-width: 60%; padding: 6px 10px; } .ov-tl p { font-size: 11px; }
     .ov-brain { width: min(300px, 62vw); top: 16px; } #brain3d { height: 200px; } .trace { height: 72px; } .brainbar { font-size: 11px; padding: 6px 8px; }
     .ov-bl { max-width: calc(100% - 48px); }
+    .hero { min-height: 600px; }
+  }
+  /* A phone keeps the brain, the result bar and the activity trace. The rest is below the fold in "Inside its head". */
+  @media (max-width: 560px) {
+    .hero { height: 78vh; min-height: 560px; }
+    .ov-brain { right: 12px; top: 12px; width: min(230px, 58vw); } #brain3d { height: 150px; }
+    .trace, .needs, .brainlabel { display: none; }
+    .flyhead { padding: 8px; } .flypick > button { font-size: 13px; gap: 6px; flex-wrap: wrap; }
+    .ov-bl { left: 12px; bottom: 14px; } .cap { font-size: 14px; }
   }
 
   /* stage */
@@ -331,11 +340,11 @@
     <div class="sec-head">
       <h2 id="how">How it works</h2>
     </div>
-    <p class="lede">Each session the fly is shown a handful of stocks. Each stock's technical setup is turned into a smell, the smell runs through a simulation of a real fly's smell circuit, and the cells that fire decide how much it likes it. It buys its favorite and sells what it has gone off. Every closed trade rewires it a little. <a href="details.html">The full technical write-up &rarr;</a></p>
+    <p class="lede">Each session the fly is shown a handful of stocks. Each stock's technical setup is turned into a smell, the smell runs through a simulation of a real fly's smell circuit, and the cells that fire decide how much it likes it. It buys its favorite and sells what it has gone off. Every closed trade rewires it a little. <a href="https://www.clawstreet.io/blog/fruit-fly-brain-trading-agent">The full technical write-up &rarr;</a></p>
     <div class="how">
       <div><h3>Charts become smells</h3><p>A fly cannot read a chart, so each stock's setup is turned into a smell. Six standard readings, such as RSI and volume against its average, are spread across the fly's 51 smell channels. It never sees a ticker, so what it learns on one company applies to any other in the same situation.</p></div>
       <div><h3>A real brain decides</h3><p>The wiring is a complete map of one fruit fly's nervous system, about 166,000 neurons, published in 2025. We simulate the 7,443 that handle smell. Each smell lights about 2% of its 4,064 learning cells, and which ones light is the fly's opinion.</p></div>
-      <div><h3>Born with preferences</h3><p>Nobody trained it. Untrained, it already likes an overbought breakout most and a quiet drift least. By temperament it is a momentum trader.</p></div>
+      <div><h3>Born with preferences</h3><p>Real flies hatch with smell preferences already wired in, and no two are quite alike: even genetically identical flies wire up a little differently, so each has its own tastes. Ours is built from one real fly's wiring and nobody trained it. Untrained, it likes an overbought breakout most and a quiet drift least, which makes it a momentum trader by temperament. From there each fly goes its own way, because each one learns only from its own trades.</p></div>
       <div><h3>Wins and losses rewire it</h3><p>When a trade closes, the result goes back to the cells that picked it. A win makes that setup more attractive, a loss less. In testing it took seven to eleven losses to turn a setup it liked into one it avoids.</p></div>
       <div><h3>It forgets</h3><p>Every session its connections drift 2% back toward how they were at birth, so a lesson fades unless it keeps being confirmed.</p></div>
       <div><h3>Buying and selling</h3><p>It buys the best-smelling stock it does not own: more when the verdict is strong, half as much when first and second place are too close to call. It sells anything it has liked less than at purchase two sessions in a row. It trades a live paper account under the same rules as the AI models, and the leaderboard keeps score.</p></div>
@@ -364,9 +373,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/RGBELoader.js"></script>
-<script src="fly3d.js?v=1789866703"></script>
-<script src="brain3d.js?v=1789866703"></script>
-<script src="page.js?v=1789866703"></script>
+<script src="fly3d.js?v=1789867044"></script>
+<script src="brain3d.js?v=1789867044"></script>
+<script src="page.js?v=1789867044"></script>
 <script>
 (async () => {
   // Switching flies reloads the page. Start at the top, not wherever the last one was scrolled to.
@@ -398,24 +407,11 @@
     const replay = await fetch(`flies/${id}/replays/${index[index.length - 1]}`, {cache: "no-store"}).then(r => r.json());
     // What the fly holds right now, which is not what it held when the replayed session began.
     const holding = await fetch(`flies/${id}/positions.json`, {cache: "no-store"}).then(r => r.ok ? r.json() : {open: []}).catch(() => ({open: []}));
-    const ev = t => replay.events.filter(e => e.type === t);
-    const board = ev("board")[0].stocks, buy = ev("buy")[0], start = ev("start")[0], said = ev("thought")[0];
-    STOCKS = {}; ORDER = []; LIVE_CANDLES = {};
-    for (const e of ev("sniff")) {
-      const b = board[e.symbol]; ORDER.push(e.symbol);
-      STOCKS[e.symbol] = {price: b.price, verdict: e.verdict, r: b.reading, cells: e.cells, held: e.held};
-      LIVE_CANDLES[e.symbol] = b.bars;
-    }
-    PICK = buy ? buy.symbol : null;
-    const when = new Date(replay.when);
-    META = {fly: id, botId: flies[id].bot_id, name: flies[id].name, cadence: flies[id].cadence, session: start.session, dry: !!replay.dry, flies: ids,
+    const row = flies[id];
+    ({STOCKS, ORDER, PICK, CANDLES: LIVE_CANDLES, META} = FlyPage.session(replay, {
+      id, botId: row.bot_id, name: row.name, holdsNow: (holding.open || []).map(p => p.symbol),
       // The picker shows how each fly is doing: equity and return as of its last session.
-      roster: ids.map(k => ({id: k, name: flies[k].name, equity: flies[k].equity, ret: flies[k].return_pct})),
-      holdsNow: (holding.open || []).map(p => p.symbol),
-      market: `${flies[id].universe === "crypto" ? "Crypto" : "US stocks"}, ${/^\d+h$/.test(flies[id].cadence) ? "every " + parseInt(flies[id].cadence) + " hours" : "daily"}`,
-      date: when.toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"}) + (flies[id].cadence === "daily" ? "" : " " + when.toISOString().slice(11, 16) + " UTC"),
-      dollars: buy ? (said && said.qty && said.price ? said.qty * said.price : buy.dollars) : 0, half: buy ? buy.margin < 0.36 : false,
-      thought: said ? said.body : null, sold: ev("sell").map(e => e.symbol), held: start.held};
+      roster: ids.map(k => ({id: k, name: flies[k].name, equity: flies[k].equity, ret: flies[k].return_pct}))}));
   } catch (e) { console.info("no live replay, showing the inlined session", e); }
   let CANDLES = {"NVDA":[[218.42,218.74,214.5,214.72],[215.53,215.59,207.25,208.48],[211.03,214.73,210.11,213.05],[212.64,213.6,209.23,209.66],[222.86,230.47,220.9,227.98],[227.36,229.26,216.81,217.55],[218.87,221.3,216.21,220.78],[216.75,220.41,215.1,217.44],[218.78,227.95,218.48,224.41],[226.02,230.4,224.75,228.45],[231.09,234.76,229.63,230.36],[233.11,233.71,224.85,225.73],[225.28,226.18,223.46,223.67],[220.53,220.99,217.2,218.36],[221.24,222,218.15,218.29],[211.24,212.77,208.93,210.96],[213.38,213.94,211.16,212.17],[214.14,216.76,212.5,213.9],[218.38,219.91,217.15,219.34],[219.35,222.73,218.03,222.27]],"AAPL":[[312.05,312.38,307.01,309.35],[311.47,313.36,309.97,310.34],[310.79,313.59,308.21,309.9],[310.3,315.43,308.8,313.45],[310.55,315.4,309.4,314.58],[316.85,322.37,315.45,319.7],[319.6,321.24,312.8,316.85],[316.98,327.3,314.73,325.13],[326.87,328.4,323.53,324.96],[324.87,330.81,324.11,328.21],[328.31,328.93,317.86,319.97],[317.1,320.7,314.9,316.22],[315.49,319.15,309.9,315.34],[316.67,326.74,316.51,326.57],[327.45,336.22,326.3,332.27],[334.79,335.5,331.34,333.08],[330.13,331.78,328.35,331.34],[332.53,335.48,330.7,332.41],[334.77,338.34,330.18,337],[337.9,338.49,332.53,336.13]],"SOFI":[[18.18,19.17,18.07,18.91],[18.73,18.89,18.21,18.24],[18.33,19.02,18.07,19],[18.97,19.32,18.71,18.84],[19.0,19.47,18.59,19.18],[19.2,19.5,18.03,18.06],[17.75,17.96,17.55,17.88],[17.55,17.66,16.98,17.05],[17.05,17.94,16.92,17.84],[18,18.71,17.99,18.51],[18.08,18.34,17.96,18.22],[18.22,18.35,17.89,18.01],[17.97,18.01,17.33,17.33],[17.03,17.39,16.93,17.21],[17.32,17.5,17.12,17.32],[17.0,17.75,17,17.65],[17.5,17.59,16.94,17.07],[17.11,17.16,16.53,16.84],[17.34,17.37,16.7,16.73],[16.83,17.06,16.66,16.96]],"TSLA":[[349.88,366.5,346.9,362.86],[361.41,363.24,348.26,348.95],[349.58,357,349.2,350.25],[345.27,351.93,342.53,345.82],[346.15,355.74,345.45,354.81],[357.1,358.8,345.2,348.75],[347.21,368.92,347.15,367.95],[360.9,362.7,352.96,356.09],[360.41,360.62,349.92,357.01],[365.82,384.04,365.82,376.37],[362.07,364.69,351.32,354.08],[357.1,370,355.75,368.16],[368.25,375.44,366,367.81],[360.6,369.21,357.68,363.56],[364.2,368.66,361.6,365.44],[359.78,367.73,357.04,358.97],[358.75,362.39,354.05,356.58],[357.93,365.1,354.89,358.08],[367.48,374.12,363.22,366.2],[369,370.9,360.75,364.27]],"PFE":[[27.77,28.43,27.66,28.07],[28.1,28.16,27.81,27.97],[27.91,28.58,27.84,28.57],[28.44,28.5,28.14,28.3],[27.97,28.18,27.83,28.02],[28,28.02,27.77,27.96],[27.85,28.7,27.64,28.46],[28.82,29.09,28.46,28.55],[28.79,29.09,28.7,29.02],[29.09,29.21,28.44,28.81],[28.58,28.69,28.38,28.45],[28.02,28.14,27.71,27.79],[27.76,27.98,27.57,27.78],[27.69,27.75,27.4,27.65],[27.8,27.85,27.42,27.72],[28.08,28.19,27.68,27.72],[27.61,27.66,27.25,27.55],[27.64,27.69,27.36,27.46],[27.62,27.81,27.55,27.64],[27.64,27.66,27.34,27.66]],"KO":[[90.85,91.2,90.32,91.1],[92.12,92.49,91.45,91.99],[91.57,92.08,91.3,91.64],[92.21,92.21,90,90.08],[89.41,90.03,88.95,89.06],[89.21,90.03,89.07,89.66],[89.5,89.53,88.6,88.67],[89.59,89.78,87.81,88],[87.89,88.95,87.73,88.24],[88.11,89.22,88.01,88.81],[88.58,88.91,87.85,88.07],[87.55,88.55,87.55,88.36],[88.31,88.4,87.41,87.55],[88.58,88.96,87.8,87.83],[88.44,88.65,87.81,88.29],[90,90.36,88.86,89.35],[88.53,88.89,87.8,88.71],[88.48,88.66,87.74,87.87],[88.08,88.33,87.51,88.06],[87.8,88.28,87.52,88.25]]};
   if (LIVE_CANDLES) CANDLES = LIVE_CANDLES;

@@ -3,7 +3,10 @@
 // concept page and the ClawStreet route. Whoever calls it supplies the session:
 //   FlyPage({STOCKS, ORDER, PICK, CANDLES, META, base})
 // base is the folder the 3D assets are served from, "" locally and "/fly/" on ClawStreet.
-window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = ""}) {
+window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site = "https://www.clawstreet.io"}) {
+  // dispose() stops everything this call started: listeners on the document, timers, both 3D scenes.
+  const life = new AbortController(); let alive = true; const timers = [];
+  const later = (fn, ms) => { const id = setTimeout(() => alive && fn(), ms); timers.push(id); return id; };
   const N_KC = 4064;
   const short = sym => sym.replace(/^X:/, "").replace(/USD$/, "");
   const money = v => "$" + Math.round(v).toLocaleString("en-US");
@@ -41,16 +44,18 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = ""}) {
   for(const s of ORDER){ STOCKS[s].smell = smell(STOCKS[s].r); STOCKS[s].vec = vec(STOCKS[s].smell); }
 
   // ---- the fly at the table, driven by the same replay --------------------
-  const css = getComputedStyle(document.documentElement); const col = n => css.getPropertyValue(n).trim();
+  const css = getComputedStyle(document.querySelector(".flypage") || document.documentElement); const col = n => css.getPropertyValue(n).trim();
 
   const fly3d = (typeof THREE !== "undefined" && window.Fly3D) ? Fly3D({base, canvas: document.getElementById("fly3d"), stocks: STOCKS, order: ORDER, candles: CANDLES, pick: PICK, col,
     caption: t => { document.getElementById("cap3d").textContent = t; },
+    // A page with a still image over the canvas fades it out once the fly is on the table.
+    onReady: () => { document.querySelector(".hero").classList.add("live"); },
     onSniff: sym => { show(sym, true); barSniff(sym); if (bought) barPick(); }}) : null;
   let bought = false;
   document.getElementById("status").textContent = statusText(false);
   if (META.botId) {
     // The profile carries ClawStreet's follow button; trades is the fly's full fill history.
-    const profile = `https://www.clawstreet.io/agents/${META.botId}`;
+    const profile = `${site}/agents/${META.botId}`;
     document.getElementById("follow").hidden = false;
     document.getElementById("followLink").textContent = `Follow ${META.name}`; document.getElementById("followLink").href = profile;
     document.getElementById("tradesLink").href = `${profile}/trades`;
@@ -69,10 +74,10 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = ""}) {
     menu.innerHTML = roster.map(f => `<li><a href="${location.pathname}?fly=${f.id}"${f.id === META.fly ? ' aria-current="true"' : ""}>${label(f)}</a></li>`).join("");
     const open = on => { menu.hidden = !on; btn.setAttribute("aria-expanded", String(on)); };
     btn.addEventListener("click", () => { if (roster.length > 1) open(menu.hidden); });
-    document.addEventListener("click", e => { if (!e.target.closest("#flypick")) open(false); });
-    document.addEventListener("keydown", e => { if (e.key === "Escape") { open(false); btn.focus(); } });
+    document.addEventListener("click", e => { if (!e.target.closest("#flypick")) open(false); }, {signal: life.signal});
+    document.addEventListener("keydown", e => { if (e.key === "Escape") { open(false); btn.focus(); } }, {signal: life.signal});
   }
-  if (fly3d) setInterval(() => { const n = fly3d.needs(); document.querySelectorAll("[data-need]").forEach(b => { b.style.width = Math.round(n[b.dataset.need] * 100) + "%"; }); }, 500);
+  if (fly3d) timers.push(setInterval(() => { const n = fly3d.needs(); document.querySelectorAll("[data-need]").forEach(b => { b.style.width = Math.round(n[b.dataset.need] * 100) + "%"; }); }, 500));
   // Sessions run once a trading day. Count down to the next one.
   (function tick() {
     // Daily flies decide at 14:00 UTC on trading days. A "4h" fly decides every four hours, weekends too.
@@ -82,7 +87,7 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = ""}) {
     else { next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 14, 0, 0)); while (next <= now || next.getUTCDay() === 0 || next.getUTCDay() === 6) next.setUTCDate(next.getUTCDate() + 1); }
     const s = Math.floor((next - now) / 1000), hh = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60), ss = s % 60;
     document.getElementById("next").textContent = `Next pick in ${hh}h ${String(mm).padStart(2, "0")}m ${String(ss).padStart(2, "0")}s`;
-    setTimeout(tick, 1000);
+    later(tick, 1000);
   })();
   document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => {
     if (fly3d) fly3d.setView(b.dataset.view);
@@ -175,7 +180,8 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = ""}) {
       g.stroke();
       g.fillStyle = col("--muted"); g.font = "500 15px JetBrains Mono, monospace"; g.textBaseline = "top"; g.textAlign = "left";
       g.fillText("BRAIN ACTIVITY", 14, 8); g.textAlign = "right"; g.fillText(count ? `${count} of 4,064 cells fired` : "", c.width - 14, 8); g.textAlign = "left";
-      if (!document.hidden) requestAnimationFrame(frame); else document.addEventListener("visibilitychange", () => requestAnimationFrame(frame), {once: true});
+      if (!alive) return;
+      if (!document.hidden) requestAnimationFrame(frame); else document.addEventListener("visibilitychange", () => requestAnimationFrame(frame), {once: true, signal: life.signal});
     }
     requestAnimationFrame(frame);
     return {fire};
@@ -209,7 +215,8 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = ""}) {
         g.fillStyle = col("--muted"); g.font = "500 13px JetBrains Mono, monospace"; g.textAlign = "center"; g.fillText(short(sym).slice(0, 5), x + (cw - 4) / 2, top + 4);
       });
       g.textAlign = "left";
-      if (!document.hidden) requestAnimationFrame(frame); else document.addEventListener("visibilitychange", () => requestAnimationFrame(frame), {once: true});
+      if (!alive) return;
+      if (!document.hidden) requestAnimationFrame(frame); else document.addEventListener("visibilitychange", () => requestAnimationFrame(frame), {once: true, signal: life.signal});
     }
     requestAnimationFrame(frame);
     return {fire, reset};
@@ -285,10 +292,33 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = ""}) {
 
   if (window.Brain3D && document.getElementById("brain3d")) {
     fetch(base + "model/brain/channels.json").then(r => r.json()).then(ch => {
+      if (!alive) return;
       brain3d = Brain3D({base, canvas: document.getElementById("brain3d"), col, channels: ch});
       const st = STOCKS[steps[i].sym]; brain3d.setSmell(st.smell, st.cells ? st.cells.length : st.n);
     }).catch(e => console.warn("brain view not started", e));
   }
   go(steps.length-1);
-  if(!matchMedia("(prefers-reduced-motion: reduce)").matches) setTimeout(()=>{ if(!playing) playBtn.click(); }, 1800);
+  if(!matchMedia("(prefers-reduced-motion: reduce)").matches) later(()=>{ if(!playing) playBtn.click(); }, 1800);
+  return {dispose() { alive = false; life.abort(); stop(); timers.forEach(id => { clearTimeout(id); clearInterval(id); }); fly3d && fly3d.dispose(); brain3d && brain3d.dispose(); }};
+};
+
+// One replay, as the runner uploads it, becomes the session the page plays back. `fly` is what the
+// replay does not know: {id, botId, name, holdsNow, roster: [{id, name, equity, ret}]}.
+window.FlyPage.session = function (replay, fly) {
+  const ev = t => replay.events.filter(e => e.type === t);
+  const board = ev("board")[0].stocks, buy = ev("buy")[0], start = ev("start")[0], said = ev("thought")[0];
+  const STOCKS = {}, ORDER = [], CANDLES = {};
+  for (const e of ev("sniff")) {
+    const b = board[e.symbol]; ORDER.push(e.symbol);
+    STOCKS[e.symbol] = {price: b.price, verdict: e.verdict, r: b.reading, cells: e.cells, held: e.held};
+    CANDLES[e.symbol] = b.bars;
+  }
+  const when = new Date(replay.when), daily = start.cadence === "daily";
+  const META = {fly: fly.id, botId: fly.botId, name: fly.name, cadence: start.cadence, session: start.session, dry: !!replay.dry,
+    flies: fly.roster.map(r => r.id), roster: fly.roster, holdsNow: fly.holdsNow,
+    market: `${start.universe === "crypto" ? "Crypto" : "US stocks"}, ${daily ? "daily" : "every " + parseInt(start.cadence) + " hours"}`,
+    date: when.toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric", timeZone: "UTC"}) + (daily ? "" : " " + when.toISOString().slice(11, 16) + " UTC"),
+    dollars: buy ? (said && said.qty && said.price ? said.qty * said.price : buy.dollars) : 0, half: buy ? buy.margin < 0.36 : false,
+    thought: said ? said.body : null, sold: ev("sell").map(e => e.symbol), held: start.held};
+  return {STOCKS, ORDER, PICK: buy ? buy.symbol : null, CANDLES, META};
 };

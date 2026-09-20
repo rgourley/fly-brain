@@ -8,7 +8,7 @@ window.Brain3D = function (opts) {
   const {canvas, col, channels, base = ""} = opts;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const renderer = new THREE.WebGLRenderer({canvas, antialias: true, alpha: true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setClearColor(0x000000, 0);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia("(max-width: 860px)").matches ? 1.5 : 2)); renderer.setClearColor(0x000000, 0);
   renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, 2, 1, 5000);

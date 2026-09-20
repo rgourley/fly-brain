@@ -94,7 +94,16 @@ window.Fly3D = function (opts) {
     const n = 500, pos = new Float32Array(n * 3), vel = [];
     for (let i = 0; i < n; i++) { pos[i * 3] = rnd(-70, 70); pos[i * 3 + 1] = rnd(0.2, 40); pos[i * 3 + 2] = rnd(-45, 45); vel.push([rnd(-0.4, 0.4), rnd(-0.15, 0.25), rnd(-0.4, 0.4)]); }
     const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    const m = new THREE.Points(g, new THREE.PointsMaterial({color: 0xfff3dc, size: 0.12, transparent: true, opacity: 0.55, depthWrite: false, sizeAttenuation: true}));
+    // A point is drawn as a square unless it has a texture. This one is a soft disc that fades to
+    // nothing at the rim, so a mote near the lens reads as an out-of-focus blur, not a box.
+    const soft = (() => {
+      const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+      const grad = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grad.addColorStop(0, "rgba(255,255,255,.9)"); grad.addColorStop(0.25, "rgba(255,255,255,.45)"); grad.addColorStop(0.6, "rgba(255,255,255,.12)"); grad.addColorStop(1, "rgba(255,255,255,0)");
+      x.fillStyle = grad; x.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    const m = new THREE.Points(g, new THREE.PointsMaterial({color: 0xfff3dc, map: soft, size: 0.2, transparent: true, opacity: 0.5, depthWrite: false, sizeAttenuation: true, blending: THREE.AdditiveBlending}));
     scene.add(m);
     return {step(dt, t) { const a = g.attributes.position.array; for (let i = 0; i < n; i++) { const v = vel[i]; a[i * 3] += (v[0] + Math.sin(t * 0.7 + i) * 0.3) * dt; a[i * 3 + 1] += (v[1] + Math.cos(t * 0.5 + i * 1.3) * 0.2) * dt; a[i * 3 + 2] += (v[2] + Math.cos(t * 0.6 + i) * 0.3) * dt; if (a[i * 3 + 1] < 0.1 || a[i * 3 + 1] > 42) a[i * 3 + 1] = rnd(0.2, 40); if (Math.abs(a[i * 3]) > 72) a[i * 3] = -a[i * 3] * 0.98; if (Math.abs(a[i * 3 + 2]) > 46) a[i * 3 + 2] = -a[i * 3 + 2] * 0.98; } g.attributes.position.needsUpdate = true; }};
   })();

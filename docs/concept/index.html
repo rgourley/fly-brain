@@ -108,7 +108,9 @@
   #brain3d { width: 100%; height: 330px; display: block; border-radius: 12px; cursor: grab; background: rgba(13,13,16,.38); backdrop-filter: blur(10px); }
   :root[data-theme="light"] #brain3d { background: rgba(248,249,251,.55); }
   .brainbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(22,22,26,.72); backdrop-filter: blur(6px); font: 500 12px var(--mono); color: var(--text); }
-  .brainbar .v { color: var(--muted); }
+  .brainbar .v { color: var(--muted); display: flex; align-items: center; gap: 6px; text-align: right; }
+  .brainbar .v svg { width: 16px; height: 12px; flex: none; }
+  .brainbar.pick .v { color: var(--brand); }
   .ov-brain { position: absolute; }
   .expand { position: absolute; top: 8px; right: 8px; padding: 6px; line-height: 0; background: rgba(22,22,26,.6); }
   .ov-brain.big { width: min(900px, calc(100% - 48px)); }
@@ -428,7 +430,7 @@
   if (LIVE_CANDLES) CANDLES = LIVE_CANDLES;
 
   const fly3d = (typeof THREE !== "undefined" && window.Fly3D) ? Fly3D({canvas: document.getElementById("fly3d"), stocks: STOCKS, order: ORDER, candles: CANDLES, pick: PICK, col,
-    caption: t => { document.getElementById("cap3d").textContent = t; },
+    caption: t => { document.getElementById("cap3d").textContent = t; const b = document.querySelector("#brainbar .t"); if (b) b.textContent = t; },
     onSniff: sym => { show(sym, true); barSniff(sym); if (bought) barPick(); }}) : null;
   let bought = false;
   document.getElementById("status").textContent = statusText(false);
@@ -525,8 +527,10 @@
   // ---- the bar under the brain: what it is sniffing right now -----------
   const bar = document.getElementById("brainbar");
   const FLYMARK = `<svg viewBox="0 0 32 24" aria-label="the fly picked this"><ellipse cx="16" cy="13" rx="6" ry="4.2" fill="var(--brand)"/><circle cx="21.5" cy="11" r="2.6" fill="var(--brand)"/><ellipse cx="8" cy="9" rx="7" ry="3.2" fill="var(--brand)" opacity=".45" transform="rotate(-18 8 9)"/><ellipse cx="8" cy="17" rx="7" ry="3.2" fill="var(--brand)" opacity=".45" transform="rotate(18 8 17)"/></svg>`;
-  function barReset() { bought = false; document.getElementById("status").textContent = statusText(false); if (fly3d) fly3d.setHeld([]); trace.reset(); bar.classList.remove("pick"); bar.querySelector(".t").textContent = "Exploring"; bar.querySelector(".v").textContent = ""; }
-  function barSniff(sym) { const st = STOCKS[sym]; bar.classList.remove("pick"); bar.querySelector(".t").textContent = `${st.held ? "Re-sniffing" : "Sniffing"} ${short(sym)}`; bar.querySelector(".v").textContent = `${Object.values(st.smell).filter(v => v >= 0.5).length} channels · ${st.cells ? st.cells.length : st.n} cells · ${st.verdict >= 0 ? "+" : ""}${st.verdict.toFixed(3)}`; trace.fire(sym); ekg.fire(st.cells ? st.cells.length : st.n); }
+  // The bar's left side is what the fly is doing now (the same words as the caption). Its right side
+  // is the result of the last sniff, or the purchase once it has bought.
+  function barReset() { bought = false; document.getElementById("status").textContent = statusText(false); if (fly3d) fly3d.setHeld([]); trace.reset(); bar.classList.remove("pick"); bar.querySelector(".v").textContent = ""; }
+  function barSniff(sym) { const st = STOCKS[sym]; bar.classList.remove("pick"); bar.querySelector(".v").textContent = `${short(sym)} ${st.verdict >= 0 ? "+" : ""}${st.verdict.toFixed(2)} · ${st.cells ? st.cells.length : st.n} cells · ${Object.values(st.smell).filter(v => v >= 0.5).length} channels`; trace.fire(sym); ekg.fire(st.cells ? st.cells.length : st.n); }
   // Activity over time. The spikes are the simulation: a burst of Kenyon cells
   // when a smell arrives, sized by how many fired, then the APL clamps it. The
   // baseline is the body: busier walking and flying than resting.
@@ -589,9 +593,9 @@
   function barPick() {
     bought = true; document.getElementById("status").textContent = statusText(true);
     if (fly3d) fly3d.setHeld([...(META.held || []), ...(PICK ? [PICK] : [])]);
-    if (!PICK) { bar.classList.remove("pick"); bar.querySelector(".t").textContent = "Nothing bought"; bar.querySelector(".v").textContent = META.sold.length ? `sold ${META.sold.map(short).join(", ")}` : "holds enough already"; return; }
-    bar.classList.add("pick"); bar.querySelector(".t").innerHTML = FLYMARK + `Bought ${short(PICK)}`;
-    bar.querySelector(".v").textContent = `${money(META.dollars)} · ${META.half ? "half size" : "full conviction"}`;
+    const v = bar.querySelector(".v");
+    if (!PICK) { bar.classList.remove("pick"); v.textContent = META.sold.length ? `Sold ${META.sold.map(short).join(", ")}, bought nothing` : "Bought nothing"; return; }
+    bar.classList.add("pick"); v.innerHTML = FLYMARK + `Bought ${short(PICK)} · ${money(META.dollars)}${META.half ? " · half size" : ""}`;
   }
 
   // ---- setup switcher: one chip per symbol, driving the diagram, the smell

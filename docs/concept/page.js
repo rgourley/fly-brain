@@ -80,13 +80,27 @@ window.FlyPage = function ({STOCKS, ORDER, PICK, CANDLES, META, base = "", site 
     document.addEventListener("keydown", e => { if (e.key === "Escape") { open(false); btn.focus(); } }, {signal: life.signal});
   }
   if (fly3d) timers.push(setInterval(() => { const n = fly3d.needs(); document.querySelectorAll("[data-need]").forEach(b => { b.style.width = Math.round(n[b.dataset.need] * 100) + "%"; }); }, 500));
-  // Sessions run once a trading day. Count down to the next one.
+  // Count down to the next session. A daily fly decides at 15:30 New York time on weekdays, half an
+  // hour before the close. A "4h" fly decides every four hours, weekends too.
+  // New York's clock for a moment in time, as [year, month, day, weekday 0-6, UTC offset in ms].
+  const newYork = at => {
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {timeZone: "America/New_York", hourCycle: "h23",
+      year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric"}).formatToParts(at).map(x => [x.type, +x.value]));
+    const wall = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+    return [p.year, p.month - 1, p.day, new Date(wall).getUTCDay(), wall - Math.floor(at.getTime() / 1000) * 1000];
+  };
   (function tick() {
-    // Daily flies decide at 14:00 UTC on trading days. A "4h" fly decides every four hours, weekends too.
     const now = new Date(); let next;
     const hours = /^(\d+)h$/.exec(META.cadence);
     if (hours) { const h = +hours[1] * 3600e3; next = new Date(Math.ceil((now.getTime() + 1) / h) * h); }
-    else { next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 14, 0, 0)); while (next <= now || next.getUTCDay() === 0 || next.getUTCDay() === 6) next.setUTCDate(next.getUTCDate() + 1); }
+    else {
+      const [y, m, d] = newYork(now);
+      for (let k = 0; k < 8; k++) {
+        const noon = new Date(Date.UTC(y, m, d + k, 17)), [, , , weekday, offset] = newYork(noon);
+        next = new Date(Date.UTC(y, m, d + k, 15, 30) - offset);
+        if (weekday !== 0 && weekday !== 6 && next > now) break;
+      }
+    }
     const s = Math.floor((next - now) / 1000), hh = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60), ss = s % 60;
     document.getElementById("next").textContent = `Next pick in ${hh}h ${String(mm).padStart(2, "0")}m ${String(ss).padStart(2, "0")}s`;
     later(tick, 1000);

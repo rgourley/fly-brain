@@ -1,8 +1,8 @@
 // The fly at the table. Real sizes: one unit is one centimeter. The fly is
 // 3 mm long, the charts are a foot wide, the table is 113 by 71 cm. The body
 // is NeuroMechFly (EPFL, Apache-2.0), 39 parts from a micro-CT scan, posed and
-// walked here by rotating its joints; the table and the room light are Poly
-// Haven scans (CC0), the same ones fruitflysimulator.com uses.
+// walked here by rotating its joints. The table and the room light are Poly
+// Haven scans (CC0).
 //
 // Frames. MuJoCo is z-up with x forward; here (x, y, z) becomes (y, z, x), so
 // the fly faces +z, stands on y, and its left is +x. flygym's joint axes are
@@ -30,7 +30,7 @@ window.Fly3D = function (opts) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.78;
   renderer.shadowMap.enabled = !lite; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene();
-  scene.fog = null;   // the blurred backdrop does the job fog was doing
+  scene.fog = null;   // the blurred backdrop gives the depth
   const camera = new THREE.PerspectiveCamera(32, 2, 0.12, 900);
   scene.add(new THREE.HemisphereLight(0xfff4e6, 0x2a201a, 0.18));
   const sun = new THREE.DirectionalLight(0xfff1dc, 0.72);
@@ -332,7 +332,7 @@ window.Fly3D = function (opts) {
       if (front && R.groomH > 0) { L.coxa.turn(Y, L.fwd * 0.55 * R.groomH); L.coxa.turn(L.lift, (0.75 * reach * share + 0.18 * stroke) * R.groomH); L.tibia.turn(L.lift, -(1.3 + 0.2 * stroke) * R.groomH); }
       if (hind && R.groomB > 0) { L.coxa.turn(Y, -L.fwd * (part === "wings" ? 0.75 : 0.5) * R.groomB); L.coxa.turn(L.lift, (0.7 * reach * share + 0.15 * stroke) * R.groomB); L.tibia.turn(L.lift, -(1.1 + 0.25 * stroke) * R.groomB); }
     }
-    // Wings beat mostly above the body plane; stroboscopic, like the simulator.
+    // Wings beat mostly above the body plane, drawn as a strobe.
     const flap = airborne ? 0.3 + Math.sin(t * 75) * 0.6 : 0;
     for (const W of R.wings) { W.joint.reset(); W.joint.turn(Y, -W.side * 1.15 * R.spread); W.joint.turn(Z, W.side * flap); }
     for (const H of R.halteres) { H.joint.reset(); H.joint.turn(Z, H.side * flap * 0.5); }

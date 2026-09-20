@@ -45,21 +45,14 @@ inhib                                  : volt
 rfc                                    : second
 """
 
-# APL does not spike. It releases GABA continuously, in proportion to how
-# much Kenyon cell activity it sees, and that feedback is what holds the
-# mushroom body at roughly 5% active. Forced to spike like every other cell
-# in this model it fires at 363 Hz and holds nothing down, so odours all
-# produce the same pattern and cannot be told apart.
+# APL does not spike. It releases GABA continuously, in proportion to the
+# Kenyon cell activity it sees. That feedback holds the mushroom body at a
+# few percent active, so different odors activate different cells.
 #
-# APL_GAIN is the one number here that is not from the connectome. It is set
-# so sparseness matches the level measured in real flies. The per-cell
-# strengths still come from the 196,200 APL synapses in the data.
-# Gain 1000 puts the mushroom body at 3.9% active, matching the sparseness
-# measured in real flies. Below it the cells saturate and every odour looks
-# alike; above it the representation thins out and starts losing detail.
-# Tuned against the sliced circuit. Gain 1000 was for the whole brain,
-# which delivered far more drive through routes that are not the olfactory
-# pathway. With those gone, 250 puts the mushroom body at 4.3% active.
+# APL_GAIN is the one number here that is not from the connectome. At 250 the
+# smell circuit runs at about 4% of Kenyon cells active per odor, the level
+# measured in real flies. The per-cell strengths come from the 196,200 APL
+# synapses in the data.
 APL_GAIN = 250.0
 APL_PARAMS = {"t_apl": 100 * ms}
 
@@ -122,7 +115,7 @@ class BrianFly:
         from_apl = weights[weights.body_pre.isin(apl_set) & weights.body_post.isin(kc_set)]
         self.kc_drive = to_apl.groupby("body_pre")["weight"].sum().to_dict()
         self.apl_strength = from_apl.groupby("body_post")["weight"].sum()
-        # Normalise so the gain, not the raw synapse count, sets the scale.
+        # Normalize so the gain, not the raw synapse count, sets the scale.
         self.apl_strength = (self.apl_strength / self.apl_strength.mean()).to_dict()
 
     def _restrict_to_smell_circuit(self) -> None:

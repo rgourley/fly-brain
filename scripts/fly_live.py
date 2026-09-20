@@ -199,7 +199,7 @@ def thought(result: dict, board_size: int, qty: float | None, price: float | Non
         # "Next" is the next thing it could have bought, the one the margin is measured against.
         # The ranking also holds what it already owns, which can outscore the pick.
         owned = set(result["held"]) - {order["symbol"]}
-        others = [r for r in ranking if r[0] != order["symbol"] and r[0] not in owned]
+        others = [r for r in ranking if r[0] != order["symbol"] and r[0] not in owned and r[0] not in result["sold"]]
         second = others[0] if others else None
         kept = [r for r in ranking if r[0] in owned and r[1] > order["verdict"]]
         head = f"Smelled {board_size} {things}. {short(order['symbol'])} came out best at {order['verdict']:.2f}"

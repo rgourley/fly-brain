@@ -28,7 +28,7 @@ window.Fly3D = function (opts) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.78;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x141210, 260, 620);
+  scene.fog = null;   // the blurred backdrop does the job fog was doing
   const camera = new THREE.PerspectiveCamera(32, 2, 0.12, 900);
   scene.add(new THREE.HemisphereLight(0xfff4e6, 0x2a201a, 0.18));
   const sun = new THREE.DirectionalLight(0xfff1dc, 0.72);
@@ -72,22 +72,24 @@ window.Fly3D = function (opts) {
     }, undefined, e => console.warn("table not loaded", e));
   }
 
-  // ---- the room: a parquet floor and plaster walls, Poly Haven scans (CC0).
-  // The table stands 80 cm high, so the floor is at -80. Sizes are a real room.
-  const ROOM = {w: 420, h: 300, d: 560, floor: -80};
-  const roomTex = (file, rx, ry) => texLoader.load(file, t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; });
+  // ---- the room. A lens focused on a 3 mm fly throws everything behind it far out of focus, so the
+  // room is a photograph of one, blurred: Poly Haven's Lythwood room panorama (CC0), the same one that
+  // lights the scene, wrapped on a large sphere. scripts/build_backdrop.py makes the image. The table
+  // stands 80 cm high on a parquet floor that fades out at its edge into the backdrop.
+  const ROOM = {floor: -80};
   {
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d), new THREE.MeshStandardMaterial({map: roomTex("textures/diagonal_parquet_diff_1k.jpg", ROOM.w / 236, ROOM.d / 236), roughness: 0.8}));
+    const backdrop = texLoader.load("textures/room_backdrop.jpg", t => { t.encoding = THREE.sRGBEncoding; });
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(520, 48, 32),
+      new THREE.MeshBasicMaterial({map: backdrop, side: THREE.BackSide, fog: false, toneMapped: false, color: 0xcfcac2, depthWrite: false}));
+    dome.position.y = 30; dome.rotation.y = 0.9; dome.renderOrder = -1; scene.add(dome);
+    const fade = (() => {
+      const c = document.createElement("canvas"); c.width = c.height = 256; const x = c.getContext("2d");
+      const g = x.createRadialGradient(128, 128, 40, 128, 128, 128); g.addColorStop(0, "#fff"); g.addColorStop(0.55, "#bbb"); g.addColorStop(1, "#000");
+      x.fillStyle = g; x.fillRect(0, 0, 256, 256); return new THREE.CanvasTexture(c);
+    })();
+    const parquet = texLoader.load("textures/diagonal_parquet_diff_1k.jpg", t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3.4, 3.4); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshStandardMaterial({map: parquet, alphaMap: fade, transparent: true, roughness: 0.8, depthWrite: false}));
     floor.rotation.x = -Math.PI / 2; floor.position.y = ROOM.floor; floor.receiveShadow = true; scene.add(floor);
-    const plaster = () => new THREE.MeshStandardMaterial({map: roomTex("textures/white_plaster_02_diff_1k.jpg", 3, 2), color: 0xd9d2c4, roughness: 0.95});
-    const wall = (w, h, x, y, z, ry) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), plaster()); m.position.set(x, y, z); m.rotation.y = ry; scene.add(m); return m; };
-    const mid = ROOM.floor + ROOM.h / 2;
-    wall(ROOM.w, ROOM.h, 0, mid, -ROOM.d / 2, 0);
-    wall(ROOM.w, ROOM.h, 0, mid, ROOM.d / 2, Math.PI);
-    wall(ROOM.d, ROOM.h, -ROOM.w / 2, mid, 0, Math.PI / 2);
-    wall(ROOM.d, ROOM.h, ROOM.w / 2, mid, 0, -Math.PI / 2);
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d), new THREE.MeshStandardMaterial({color: 0xe8e4dc, roughness: 1}));
-    ceiling.rotation.x = Math.PI / 2; ceiling.position.y = ROOM.floor + ROOM.h; scene.add(ceiling);
   }
   // Dust in the light: a few hundred motes drifting slowly above the table.
   const motes = (() => {

@@ -261,7 +261,8 @@ window.Fly3D = function (opts) {
     });
     const halteres = ["l_haltere", "r_haltere"].map(n => ({side: n[0] === "l" ? 1 : -1, joint: J(n)}));
     const ants = ["l_pedicel", "r_pedicel"].map(n => ({side: n[0] === "l" ? 1 : -1, joint: J(n)}));
-    const rigObj = {holder, legs, wings, halteres, ants, head: J("c_head"), rostrum: J("c_rostrum"), haustellum: J("c_haustellum"),
+    const abdomen = ["c_abdomen12", "c_abdomen3", "c_abdomen4", "c_abdomen5", "c_abdomen6"].map(J);
+    const rigObj = {holder, legs, wings, halteres, ants, abdomen, head: J("c_head"), rostrum: J("c_rostrum"), haustellum: J("c_haustellum"),
                     stride: 0, tuck: 0, spread: 0, sip: 0, groomH: 0, groomB: 0, twitch: 0};
     const box = new THREE.Box3().setFromObject(holder); const size = box.getSize(new THREE.Vector3());
     const k = BODY / size.z; holder.scale.setScalar(k); holder.updateMatrixWorld(true);
@@ -283,8 +284,15 @@ window.Fly3D = function (opts) {
     R.groomH = ease(R.groomH, act.groom === "head" && !airborne ? 1 : 0, dt, 5);
     R.groomB = ease(R.groomB, act.groom === "body" && !airborne ? 1 : 0, dt, 5);
     R.twitch = ease(R.twitch, act.sniff && !airborne ? 1 : 0, dt, 4);
-    const rub = Math.sin(t * (act.part === "antennae" ? 40 : act.part === "wings" ? 22 : 30));
-    const reach = act.part === "antennae" ? 0.82 : act.part === "wings" ? 1.22 : 1;   // antennae sit lower than the eyes; wings are a longer sweep than the abdomen
+    // Four grooming motions, each as flies do it. Eyes: the front legs wipe up and over the head, one
+    // side leading then the other, and the head tilts into the leg. Antennae: both front legs held low
+    // in front, short fast strokes together. Abdomen: the hind legs rub along it while it curls down to
+    // meet them. Wings: the hind legs reach up and draw back over one wing, then the other.
+    const part = act.part, fast = part === "antennae" ? 40 : part === "wings" ? 16 : part === "abdomen" ? 24 : 26;
+    const rub = Math.sin(t * fast);
+    const lead = Math.sin(t * (part === "wings" ? 1.6 : 2.4));          // which side is working harder, for eyes and wings
+    const reach = part === "antennae" ? 0.78 : part === "wings" ? 1.3 : 1;
+    const oneSided = part === "eyes" || part === "wings";
     for (const L of R.legs) {
       const p = R.stride + (L.group ? Math.PI : 0);
       const swing = Math.sin(p) * 0.28 * gait, up = Math.max(0, Math.cos(p));
@@ -295,8 +303,10 @@ window.Fly3D = function (opts) {
       L.tibia.turn(L.lift, -(flex + 1.2 * R.tuck));
       L.tarsus.turn(L.lift, -0.4 * R.tuck);
       const front = L.id[1] === "f", hind = L.id[1] === "h", s = L.id[0] === "l" ? 1 : -1;
-      if (front && R.groomH > 0) { L.coxa.turn(Y, L.fwd * 0.55 * R.groomH); L.coxa.turn(L.lift, (0.75 * reach + 0.18 * rub * s) * R.groomH); L.tibia.turn(L.lift, -(1.3 + 0.2 * rub * s) * R.groomH); }
-      if (hind && R.groomB > 0) { L.coxa.turn(Y, -L.fwd * 0.5 * R.groomB); L.coxa.turn(L.lift, (0.7 * reach + 0.15 * rub * s) * R.groomB); L.tibia.turn(L.lift, -(1.1 + 0.25 * rub * s) * R.groomB); }
+      const share = oneSided ? 0.55 + 0.45 * Math.max(-1, Math.min(1, lead * s * 2)) : 1;   // this leg's share of the work
+      const stroke = part === "antennae" ? rub : rub * s;                                      // antennae: both legs together
+      if (front && R.groomH > 0) { L.coxa.turn(Y, L.fwd * 0.55 * R.groomH); L.coxa.turn(L.lift, (0.75 * reach * share + 0.18 * stroke) * R.groomH); L.tibia.turn(L.lift, -(1.3 + 0.2 * stroke) * R.groomH); }
+      if (hind && R.groomB > 0) { L.coxa.turn(Y, -L.fwd * (part === "wings" ? 0.75 : 0.5) * R.groomB); L.coxa.turn(L.lift, (0.7 * reach * share + 0.15 * stroke) * R.groomB); L.tibia.turn(L.lift, -(1.1 + 0.25 * stroke) * R.groomB); }
     }
     // Wings beat mostly above the body plane; stroboscopic, like the simulator.
     const flap = airborne ? 0.3 + Math.sin(t * 75) * 0.6 : 0;
@@ -305,7 +315,11 @@ window.Fly3D = function (opts) {
     for (const A of R.ants) { A.joint.reset(); A.joint.turn(Y, A.side * Math.sin(t * 9 + A.side) * 0.22 * R.twitch); A.joint.turn(X, Math.sin(t * 7) * 0.1 * R.twitch); }
     R.rostrum.reset(); R.haustellum.reset();
     R.rostrum.turn(X, -1.5 * R.sip); R.haustellum.turn(X, 2.8 * R.sip);
-    R.head.reset(); R.head.turn(X, 0.03 * Math.sin(R.stride * 2) * gait + (R.groomH ? Math.sin(t * 7) * 0.1 * R.groomH : 0));
+    R.head.reset(); R.head.turn(X, 0.03 * Math.sin(R.stride * 2) * gait + (R.groomH ? (part === "antennae" ? 0.16 : 0.05) * R.groomH : 0));
+    if (R.groomH && part === "eyes") R.head.turn(Z, lead * 0.22 * R.groomH);                 // tilt the head into the working leg
+    const curl = part === "abdomen" ? 0.13 + 0.03 * rub : 0;                                 // the abdomen bends down to the hind legs
+    for (const A of R.abdomen) { A.reset(); if (R.groomB && curl) A.turn(X, curl * R.groomB); }
+    if (R.groomB && part === "wings") for (const W of R.wings) W.joint.turn(Z, W.side * Math.max(0, lead * W.side) * 0.18 * R.groomB);   // the wing being cleaned lifts a little
   }
 
   // ---- behavior ---------------------------------------------------------
@@ -373,14 +387,14 @@ window.Fly3D = function (opts) {
       if (!exploring) return;
       if (left-- <= 0) { exploring = false; done && done(); return; }
       const r = Math.random(); onDone = step; act.groom = null; dwellFeed = false;
-      if (needs.tired > 0.8) { waypoints = []; dwellMs = 6000 + Math.random() * 5000; mode = "walk"; say("Resting"); return; }
+      if (needs.tired > 0.8) { waypoints = []; dwellMs = rnd(25000, 40000); mode = "walk"; say("Resting"); return; }
       if (needs.thirst > 0.75) { goSpot(SPOT.water, "Going for water", "thirst", step); return; }
       if (needs.hunger > 0.75) { goSpot(SPOT.sugar, "Going for sugar", "hunger", step); return; }
       if (held.length && r < 0.14) { const h = held[Math.floor(Math.random() * held.length)]; exploring = false; visit(h, stocks[h].verdict, () => { exploring = true; step(); }, () => onSniff && onSniff(h)); return; }
       // A fly is still about half the time, more when it is a quiet hour (Berman et al. 2014).
       // What is left goes to walking, then grooming, then the odd flight.
-      const a = alertness(), rest = brief ? 0.1 : 0.72 - 0.4 * a, q = Math.random();
-      if (r < rest) { waypoints = []; dwellMs = brief ? rnd(800, 1500) : rnd(5000, 14000) * (1.5 - a); mode = "walk"; say("Resting"); }
+      const a = alertness(), rest = brief ? 0.1 : 0.82 - 0.35 * a, q = Math.random();
+      if (r < rest) { waypoints = []; dwellMs = brief ? rnd(800, 1500) : rnd(8000, 22000) * (1.5 - a); mode = "walk"; say("Resting"); }
       else if (q < 0.5) { waypoints = [nearby(fly.position, 2.5), nearby(fly.position, 2.5)]; dwellMs = rnd(300, 800); mode = "walk"; say("Walking"); }
       else if (q < 0.85) { waypoints = []; mode = "walk"; dwellMs = startGrooming(performance.now(), brief ? 0.2 : 0.6); }
       else { const spot = randomSpot(); waypoints = [nearby(spot, 1.5)]; dwellMs = 300; takeOff(spot); say("Flying"); }
@@ -394,9 +408,11 @@ window.Fly3D = function (opts) {
     let airborne = false; speedNow = 0;
     // Needs drift up; flying costs the most, resting pays it back.
     const still = mode === "dwell" && !act.groom && !act.feeding;
-    needs.hunger = Math.min(1, needs.hunger + dt * 0.006);
-    needs.thirst = Math.min(1, needs.thirst + dt * 0.009);
-    needs.tired = Math.max(0, Math.min(1, needs.tired + dt * (mode === "fly" ? 0.03 : mode === "walk" && waypoints.length ? 0.008 : still ? -0.09 : 0.002)));
+    // Minutes, not seconds: hungry in about a quarter of an hour, thirsty in ten minutes. A flight is
+    // the expensive thing. Rest pays tiredness back over most of a minute.
+    needs.hunger = Math.min(1, needs.hunger + dt * 0.0011);
+    needs.thirst = Math.min(1, needs.thirst + dt * 0.0017);
+    needs.tired = Math.max(0, Math.min(1, needs.tired + dt * (mode === "fly" ? 0.022 : mode === "walk" && waypoints.length ? 0.004 : still ? -0.018 : 0.0006)));
     // Flies clean themselves right after landing, most of the time.
     // A new instruction can arrive mid-flight (Replay pressed, a card clicked). The fly must come
     // down before it does anything on foot, or it walks on air.
@@ -405,6 +421,8 @@ window.Fly3D = function (opts) {
       while (groomQueue.length && now >= groomQueue[0].until) groomQueue.shift();
       if (groomQueue.length) { const g = groomQueue[0]; act.groom = g.legs; act.part = g.part; say(`Grooming its ${g.part}`); fly.rotation.y = heading; return false; }
       act.groom = null; act.part = null;
+      // The bout is over: the caption goes back to what the fly is doing now.
+      say(exploring ? (waypoints.length ? "Walking" : "Resting") : `Walking on ${short(current)}`);
     }
     if (mode === "fly") {
       airborne = true;
@@ -415,10 +433,12 @@ window.Fly3D = function (opts) {
       const ahead = tmp.clone().sub(fly.position);
       fly.position.set(tmp.x, h, tmp.z); speedNow = FLIGHT;
       if (ahead.lengthSq() > 1e-6) heading = Math.atan2(ahead.x, ahead.z);
-      if (s >= 1) { fly.position.y = 0; mode = "walk"; if (exploring ? Math.random() < 0.65 : Math.random() < 0.3) startGrooming(now, exploring ? 0.35 : 0); if (dish[current] && !exploring) say(`Sniffing ${short(current)}`); if (onArrive) { const f = onArrive; onArrive = null; f(); } }
+      if (s >= 1) { fly.position.y = 0; mode = "walk"; if (exploring ? Math.random() < 0.65 : Math.random() < 0.3) startGrooming(now, exploring ? 0.35 : 0); say(exploring ? "Walking" : `Walking on ${short(current)}`); }
     } else if (mode === "walk") {
       const w = waypoints[0];
-      if (!w) { mode = "dwell"; dwellUntil = now + dwellMs; act.feeding = !exploring || dwellFeed; act.sniff = !exploring; if (dwellFeed) say(current && false ? "" : (needs.thirst > needs.hunger ? "Drinking" : "Feeding")); return false; }
+      if (!w) { mode = "dwell"; dwellUntil = now + dwellMs; act.feeding = !exploring || dwellFeed; act.sniff = !exploring;
+        if (!exploring && dish[current]) say(`Sniffing ${short(current)}`);
+        if (onArrive) { const f = onArrive; onArrive = null; f(); } if (dwellFeed) say(needs.thirst > needs.hunger ? "Drinking" : "Feeding"); return false; }
       const d = w.clone().sub(fly.position); d.y = 0; const dist = d.length();
       if (dist < 0.12) { waypoints.shift(); return false; }
       const want = Math.atan2(d.x, d.z); let diff = want - heading; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
@@ -460,11 +480,11 @@ window.Fly3D = function (opts) {
     else { wantPos.sub(fly.position); camOff.lerp(wantPos, Math.min(1, dt * 4)); camPos.copy(fly.position).add(camOff); look.copy(wantLook); }
     // In the air the shot loosens: a wider lens, a little handheld shake, a slight bank.
     flightFeel += ((mode === "fly" && !reduce ? 1 : 0) - flightFeel) * Math.min(1, dt * 4);
-    const ft = performance.now() / 1000, amp = 0.035 * flightFeel * (view === "wide" ? 0 : camOff.length());
-    camera.position.copy(camPos).add(tmp.set(Math.sin(ft * 13.1) + 0.5 * Math.sin(ft * 29.3), Math.sin(ft * 17.7) + 0.5 * Math.sin(ft * 31.9), Math.sin(ft * 11.3)).multiplyScalar(amp));
+    const ft = performance.now() / 1000, amp = 0.009 * flightFeel * (view === "wide" ? 0 : camOff.length());
+    camera.position.copy(camPos).add(tmp.set(Math.sin(ft * 5.1) + 0.4 * Math.sin(ft * 9.3), Math.sin(ft * 6.7) + 0.4 * Math.sin(ft * 11.9), Math.sin(ft * 4.3)).multiplyScalar(amp));
     camera.lookAt(look);
-    camera.rotateZ(Math.sin(ft * 2.3) * 0.045 * flightFeel);
-    const fov = 32 + 8 * flightFeel; if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    camera.rotateZ(Math.sin(ft * 1.4) * 0.02 * flightFeel);
+    const fov = 32 + 6 * flightFeel; if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
     if (debugTop) { camera.position.set(fly.position.x + 0.001, fly.position.y + 1.1, fly.position.z); camera.lookAt(fly.position); }
     // The brain panel covers the right of the frame, so the picture is slid
     // left: a little on a wide window, a lot on a narrow one.

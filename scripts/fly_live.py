@@ -119,7 +119,7 @@ def closed_positions(key: str, bot_id: str, fly_positions: list[dict]) -> dict[s
     gone = [p for p in fly_positions if p["symbol"] not in live]
     if not gone:
         return {}
-    fills = api(key, "GET", f"/v1/me/agents/{bot_id}/fills?limit=500")["data"]
+    fills = api(key, "GET", f"/v1/me/agents/{bot_id}/fills?limit=200")["data"]
     result = {}
     for p in gone:
         since = p["opened"]
@@ -151,7 +151,8 @@ def slot(cadence: str, now: datetime) -> str | None:
     if cadence.endswith("h"):
         every = int(cadence[:-1])
         utc = now.astimezone(timezone.utc)
-        return utc.strftime("%Y-%m-%dT%H") if utc.hour % every == 0 and utc.minute < 30 else None
+        # The whole hour counts, so a run that failed on the hour gets a second try at half past.
+        return utc.strftime("%Y-%m-%dT%H") if utc.hour % every == 0 else None
     ny = now.astimezone(ZoneInfo("America/New_York"))
     return ny.strftime("%Y-%m-%d") if ny.weekday() < 5 and ny.hour == 15 and ny.minute >= 30 else None
 
@@ -256,6 +257,13 @@ def register(fly_id: str, m: dict) -> None:
     print(f"claim it here: {r['claim_url']}  (code {r.get('verification_code')})")
 
 
+def mark_slot(fly_id: str, name: str | None) -> None:
+    """Record that this slot ran. Written only after the session finished, so a crash leaves it open to retry."""
+    if name:
+        (FLIES / fly_id).mkdir(parents=True, exist_ok=True)
+        (FLIES / fly_id / "last_slot.txt").write_text(name)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fly", default="001")
@@ -266,6 +274,7 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=None, help="board seed; default is the minute")
     args = ap.parse_args()
 
+    slot_name = None
     m = load_manifest()
     if args.fly not in m:
         raise SystemExit(f"no fly {args.fly} in {MANIFEST}")
@@ -278,8 +287,7 @@ def main() -> None:
         if not ok:
             print(f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC fly {args.fly}: skipped, {why}")
             return
-        (FLIES / args.fly).mkdir(parents=True, exist_ok=True)
-        (FLIES / args.fly / "last_slot.txt").write_text(why)
+        slot_name = why
 
     key = keychain(row["keychain"]) or keychain(DATA_KEYCHAIN)
     if not key:
@@ -304,7 +312,7 @@ def main() -> None:
         save_manifest(m)
         closed = closed_positions(key, bot_id, positions["open"] + positions["pending"])
         live = {p["symbol"] for p in portfolio.get("positions", [])}
-        filled = {f["symbol"] for f in api(key, "GET", f"/v1/me/agents/{bot_id}/fills?limit=500")["data"]}
+        filled = {f["symbol"] for f in api(key, "GET", f"/v1/me/agents/{bot_id}/fills?limit=200")["data"]}
         ghosts = [p["symbol"] for p in positions["open"] + positions["pending"] if p["symbol"] not in live and p["symbol"] not in closed and p["symbol"] not in filled]
         if ghosts and args.go:
             positions = {k: [p for p in v if p["symbol"] not in ghosts] for k, v in positions.items()}
@@ -364,6 +372,7 @@ def main() -> None:
     if not args.go:
         if uploads:
             upload_replay(key, Path(result["replay"]))
+        mark_slot(args.fly, slot_name)
         print("\ndry run. Nothing sent, nothing learned." + (f" Replay saved: {result['replay']}" if result["replay"] else ""))
         return
 
@@ -396,6 +405,7 @@ def main() -> None:
         time.sleep(1)
     api(key, "POST", f"/v1/me/agents/{bot_id}/thoughts", json_body={"body": text})
     print("thought posted")
+    mark_slot(args.fly, slot_name)
     if uploads:   # last, so a failed upload can never cost an order or a thought
         upload_replay(key, Path(result["replay"]))
 

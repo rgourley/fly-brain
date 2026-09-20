@@ -196,12 +196,19 @@ def thought(result: dict, board_size: int, qty: float | None, price: float | Non
     order = result["order"]
     ranking = result["ranking"]
     if order:
-        second = ranking[1] if len(ranking) > 1 else None
+        # "Next" is the next thing it could have bought, the one the margin is measured against.
+        # The ranking also holds what it already owns, which can outscore the pick.
+        owned = set(result["held"]) - {order["symbol"]}
+        others = [r for r in ranking if r[0] != order["symbol"] and r[0] not in owned]
+        second = others[0] if others else None
+        kept = [r for r in ranking if r[0] in owned and r[1] > order["verdict"]]
         head = f"Smelled {board_size} {things}. {short(order['symbol'])} came out best at {order['verdict']:.2f}"
         if second:
             head += f", {short(second[0])} next at {second[1]:.2f}"
         close = order["margin"] < 0.36
         head += ", too close to tell apart." if close else "."
+        if kept:
+            head += f" {short(kept[0][0])}, which it already holds, still smelled better at {kept[0][1]:.2f}."
         spend = qty * price if qty and price else order["dollars"]
         amount = f"{qty:g} {short(order['symbol'])}" if crypto else f"{qty:g} shares of {short(order['symbol'])}"
         head += f" Bought {'half size, ' if close else ''}{amount} at ${price:,.2f}, about ${spend:,.0f}."

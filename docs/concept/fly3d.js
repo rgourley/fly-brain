@@ -211,14 +211,18 @@ window.Fly3D = function (opts) {
     // the rear edge of each abdominal tergite, and the last two tergites dark all over, which is what
     // marks a male. The pigment is on the back; the underside stays pale. The brain here is a male's.
     // The body scan, NeuroMechFly, is from a female, so the shape is hers and the coloring is his.
-    const matFor = n => n.includes("eye") ? new THREE.MeshStandardMaterial({color: 0x640c08, roughness: 0.32})
-      : n.includes("wing") ? new THREE.MeshPhysicalMaterial({color: 0xd9dee6, transparent: true, opacity: 0.4, side: THREE.DoubleSide, roughness: 0.12, depthWrite: false})
+    const matFor = n => n.includes("eye") ? new THREE.MeshStandardMaterial({color: 0xf01408, roughness: 0.38, envMapIntensity: 0.25})
+      : n.includes("wing") ? new THREE.MeshPhysicalMaterial({color: 0xe9dcc4, transparent: true, opacity: 0.3, side: THREE.DoubleSide, roughness: 0.1, depthWrite: false})
       : n.includes("arista") ? new THREE.MeshStandardMaterial({color: 0x241a12, roughness: 0.6})
       : n.includes("haltere") ? new THREE.MeshStandardMaterial({color: 0x9e8052, roughness: 0.5})
       : /rostrum|haustellum/.test(n) ? new THREE.MeshStandardMaterial({color: 0x5c4021, roughness: 0.6})
-      : /_(coxa|trochanterfemur|tibia|tarsus)/.test(n) ? new THREE.MeshStandardMaterial({color: 0x6e4c20, roughness: 0.6, envMapIntensity: 0.35})
+      : /_(coxa|trochanterfemur|tibia|tarsus)/.test(n) ? new THREE.MeshStandardMaterial({color: 0x8e4a20, roughness: 0.6, envMapIntensity: 0.35})
       : new THREE.MeshStandardMaterial({color: 0xffffff, vertexColors: true, roughness: 0.6, side: THREE.DoubleSide, envMapIntensity: 0.35});
-    const tan = new THREE.Color(0x946124), dark = new THREE.Color(0x0b0805);   // colors here are linear, so near-black has to be very low to read as black on screen
+    // Matched against a photograph of a real male (A. Karwath, Wikimedia Commons): the thorax and head
+    // are orange-amber, about #d09066 on screen; the abdomen is a paler cream between its dark bands;
+    // the eye is scarlet, #e72605. Colors here are linear, so each is the screen color put through the
+    // sRGB curve, and near-black has to be very low to read as black.
+    const tan = new THREE.Color(0xa83c16), cream = new THREE.Color(0xa8602f), dark = new THREE.Color(0x0c0604);   // set a little more saturated than the target: the room light adds white
     function stripe(g, name) {
       const pos = g.attributes.position, n = pos.count, c = new Float32Array(n * 3);
       let lo = Infinity, hi = -Infinity, ylo = Infinity, yhi = -Infinity;
@@ -231,7 +235,7 @@ window.Fly3D = function (opts) {
         let k = /abdomen[56]/.test(name) ? 1 : /abdomen[34]/.test(name) ? band : /abdomen12/.test(name) ? (f < 0.12 ? 1 : 0) : 0;
         k *= dorsal;
         if (name === "c_thorax") k = 0.18 * (1 - f);   // a little darker toward the scutellum
-        const col = tan.clone().lerp(dark, k); c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b;
+        const col = (/abdomen/.test(name) ? cream : tan).clone().lerp(dark, k); c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b;
       }
       g.setAttribute("color", new THREE.BufferAttribute(c, 3)); return g;
     }

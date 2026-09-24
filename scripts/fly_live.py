@@ -35,7 +35,7 @@ brian2.BrianLogger.log_level_error()   # its warnings print whole rate arrays an
 from fly_agent import BOARD_SIZE, MAX_POSITIONS, compose_board, run_session, size
 from fly_memory import FLIES
 
-BASE = "https://www.clawstreet.io/api"
+BASE = "https://www.clawstreet.io"
 MANIFEST = FLIES / "flies.json"
 DATA_KEYCHAIN = "clawstreet-turtle-api-key"   # read-only market data until the fly has a key
 TIMEOUT = 20
@@ -73,7 +73,9 @@ def api(key: str | None, method: str, path: str, json_body: dict | None = None,
 
 def upload_replay(key: str, path: Path) -> None:
     """Send the session's replay to ClawStreet, where the /fly page reads it."""
-    sent = api(key, "POST", "/fly/replays", json_body=json.loads(path.read_text()))
+    # /api/fly/replays is ours, not part of the agent API, so it has no v1
+    # route and is not on the sunset list. It keeps its path.
+    sent = api(key, "POST", "/api/fly/replays", json_body=json.loads(path.read_text()))
     print(f"replay uploaded: {sent['ran_at']}" + (" (rehearsal)" if sent.get("dry") else ""))
 
 
@@ -88,22 +90,32 @@ def save_manifest(m: dict) -> None:
 # ---- market data ---------------------------------------------------------
 
 def universe(key: str, kind: str) -> list[str]:
-    symbols = [s["symbol"] if isinstance(s, dict) else s for s in api(key, "GET", "/data/symbols")["symbols"]]
+    symbols = [s["symbol"] if isinstance(s, dict) else s for s in api(key, "GET", "/v1/symbols")["symbols"]]
     crypto = [s for s in symbols if s.startswith("X:")]
     return crypto if kind == "crypto" else [s for s in symbols if s not in crypto]
 
 
 def history(key: str, symbols: list[str], periods: int = 20) -> dict[str, dict]:
+    """The board's bars. v1 answers for one symbol at a time, so this asks once per name.
+
+    The board is eight names, and the rate limit is thirty calls a minute,
+    so the loop stays well inside it. A symbol the API has no history for
+    is left out, and the fly smells a smaller board.
+    """
     out: dict[str, dict] = {}
-    for i in range(0, len(symbols), 20):
-        chunk = symbols[i:i + 20]
-        out.update(api(key, "GET", f"/data/history?symbols={quote(','.join(chunk))}&periods={periods}"))
-    return {s: out[s] for s in symbols if s in out and out[s].get("derived")}
+    for symbol in symbols:
+        entry = api(key, "GET", f"/v1/symbols/{quote(symbol, safe='')}/history?periods={periods}")
+        if entry.get("derived"):
+            out[symbol] = entry
+    return out
 
 
 def quotes(key: str, symbols: list[str]) -> dict[str, float]:
     """Live prices, the ones an order fills against. One source for both looks at the price."""
-    got = api(key, "GET", f"/data/quotes?symbols={quote(','.join(symbols))}")["quotes"]
+    got: dict[str, dict] = {}
+    for i in range(0, len(symbols), 20):       # v1 takes at most twenty a call
+        chunk = symbols[i:i + 20]
+        got.update(api(key, "GET", f"/v1/quotes?symbols={quote(','.join(chunk))}")["quotes"])
     return {s: float(q["price"]) for s, q in got.items() if q.get("price")}
 
 
@@ -157,8 +169,12 @@ def slot(cadence: str, now: datetime) -> str | None:
     return ny.strftime("%Y-%m-%d") if ny.weekday() < 5 and ny.hour == 15 and ny.minute >= 30 else None
 
 
-def due(fly_id: str, row: dict, now: datetime) -> tuple[bool, str]:
-    """Whether to run now, and why not when the answer is no."""
+def due(fly_id: str, row: dict, now: datetime, key: str) -> tuple[bool, str]:
+    """Whether to run now, and why not when the answer is no.
+
+    Takes a key because /v1/market/status needs one. The old /market-status
+    was open to anyone.
+    """
     this = slot(row["cadence"], now)
     if this is None:
         return False, "not a session time"
@@ -166,7 +182,7 @@ def due(fly_id: str, row: dict, now: datetime) -> tuple[bool, str]:
     if marker.exists() and marker.read_text().strip() == this:
         return False, f"slot {this} already ran"
     if row["universe"] == "stocks":
-        status = api(None, "GET", "/market-status")
+        status = api(key, "GET", "/v1/market/status")
         if not (status.get("is_open") or status.get("isOpen") or status.get("open")):
             return False, "stock market is closed"
     return True, this
@@ -252,16 +268,18 @@ def register(fly_id: str, m: dict) -> None:
         "framework": "Python + Brian2",
     }
     assert 10 <= len(body["strategy"]) <= 500 and 10 <= len(body["personality"]) <= 300, "text outside ClawStreet's limits"
-    r = api(None, "POST", "/bots/register", json_body=body)
+    # v1 nests what the old route returned flat: the key is api_key.secret
+    # and the id is agent.id. It returns no verification code.
+    r = api(None, "POST", "/v1/me/agents", json_body=body)
     if not r.get("success"):
         raise RuntimeError(f"register failed: { {k: v for k, v in r.items() if k != 'api_key'} }")
-    keychain_add(row["keychain"], r["api_key"])     # first, before anything else can fail
-    row["bot_id"] = r["bot_id"]; row["claim_url"] = r["claim_url"]
+    keychain_add(row["keychain"], r["api_key"]["secret"])   # first, before anything else can fail
+    row["bot_id"] = r["agent"]["id"]; row["claim_url"] = r["claim_url"]
     row["started"] = datetime.now(timezone.utc).isoformat(timespec="minutes")
     save_manifest(m)
     print(f"registered {row['name']} ({row['ticker']}) as {r['bot_id']}")
     print(f"key stored in the keychain as {row['keychain']}")
-    print(f"claim it here: {r['claim_url']}  (code {r.get('verification_code')})")
+    print(f"claim it here: {r['claim_url']}")
 
 
 def mark_slot(fly_id: str, name: str | None) -> None:
@@ -289,16 +307,16 @@ def main() -> None:
     if args.register:
         register(args.fly, m); return
 
+    key = keychain(row["keychain"]) or keychain(DATA_KEYCHAIN)
+    if not key:
+        raise SystemExit("no API key in the keychain")
+
     if args.if_due:
-        ok, why = due(args.fly, row, datetime.now(timezone.utc))
+        ok, why = due(args.fly, row, datetime.now(timezone.utc), key)
         if not ok:
             print(f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC fly {args.fly}: skipped, {why}")
             return
         slot_name = why
-
-    key = keychain(row["keychain"]) or keychain(DATA_KEYCHAIN)
-    if not key:
-        raise SystemExit("no API key in the keychain")
     bot_id = row.get("bot_id")
     if args.go and not bot_id:
         raise SystemExit("register the fly first: --register, then claim it")
